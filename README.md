@@ -1,7 +1,7 @@
 # serialized
 
-[![Build Status](https://github.com/funkwerk/serialized/workflows/CI/badge.svg)](https://github.com/funkwerk/serialized/actions?query=workflow%3ACI)
-[![License](https://img.shields.io/badge/license-BSL_1.0-blue.svg)](https://raw.githubusercontent.com/funkwerk/serialized/master/LICENSE)
+[![Build Status](https://github.com/funkwerk-mobility/serialized/workflows/CI/badge.svg)](https://github.com/funkwerk-mobility/serialized/actions?query=workflow%3ACI)
+[![License](https://img.shields.io/badge/license-BSL_1.0-blue.svg)](https://raw.githubusercontent.com/funkwerk-mobility/serialized/master/LICENSE)
 [![Dub Version](https://img.shields.io/dub/v/serialized.svg)](https://code.dlang.org/packages/serialized)
 
 Serialized is a library that automates encoding and decoding of D data types to JSON and XML.
