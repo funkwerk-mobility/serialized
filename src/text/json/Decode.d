@@ -475,7 +475,7 @@ if (is(T == enum))
 }
 
 private template decodeValue(T: string)
-if (!is(T == enum))
+if (!is(T == enum) && is(string : T))
 {
     private T decodeValue(JsonStream)(ref JsonStream jsonStream, lazy string target)
     {
