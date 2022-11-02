@@ -243,11 +243,16 @@ private void encodeJsonStream(T : JSONValue, alias transform, Range, attributes.
 private void encodeValue(T, Range)(ref Range output, T value)
 if (!is(T: Nullable!Arg, Arg))
 {
-    import std.conv : to;
     import text.xml.Convert : Convert;
 
-    static if (is(T == enum))
+    static if (__traits(compiles, value.to!string))
     {
+        output.put(JSONOutputToken(value.to!string));
+    }
+    else static if (is(T == enum))
+    {
+        import std.conv : to;
+
         output.put(JSONOutputToken(value.to!string));
     }
     else static if (isBoolean!T || isIntegral!T || isFloatingPoint!T || isSomeString!T)

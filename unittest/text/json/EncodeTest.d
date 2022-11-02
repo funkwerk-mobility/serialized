@@ -518,6 +518,33 @@ template encodeTests(bool useEncodeJson)
 
             actual.should.equal(expected);
         }
+
+        @(prefix ~ "encode type with to!string method")
+        unittest
+        {
+            // given
+            struct S
+            {
+                int i;
+
+                string to(T : string)() const
+                {
+                    import std.format : format;
+
+                    return format!"%s"(this.i);
+                }
+
+                mixin(GenerateThis);
+            }
+
+            // when
+            auto actual = testEncode!S(S(5));
+
+            // then
+            enum expected = `"5"`.parseJSON;
+
+            actual.should.equal(expected);
+        }
     }
 }
 

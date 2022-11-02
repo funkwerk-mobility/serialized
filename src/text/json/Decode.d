@@ -516,6 +516,27 @@ if (__traits(compiles, Convert.to!T(string.init)))
     }
 }
 
+private template decodeValue(T)
+if (__traits(compiles, T.fromString(string.init)))
+{
+    private T decodeValue(JsonStream)(ref JsonStream jsonStream, lazy string target)
+    {
+        scope(success)
+        {
+            jsonStream.popFront;
+        }
+
+        if (jsonStream.front.kind == JSONParserNodeKind.literal
+            && jsonStream.front.literal.kind == JSONTokenKind.string)
+        {
+            return T.fromString(jsonStream.front.literal.string);
+        }
+        throw new JSONException(
+            format!"Invalid JSON:%s expected string, but got %s"(
+                target ? (" " ~ target) : null, jsonStream.decodeJSONValue));
+    }
+}
+
 private JSONValue decodeJSONValue(JsonStream)(ref JsonStream jsonStream)
 in (isJSONParserNodeInputRange!JsonStream)
 {

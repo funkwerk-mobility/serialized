@@ -681,3 +681,23 @@ unittest
     `null`.decode!(Nullable!int).should.be(Nullable!int());
     `5`.decode!(Nullable!int).should.be(5);
 }
+
+@("decode type with fromString method")
+unittest
+{
+    // given
+    struct S
+    {
+        size_t length;
+
+        static S fromString(string text)
+        {
+            return S(text.length);
+        }
+
+        mixin(GenerateThis);
+    }
+
+    // when/then
+    decode!S(`"Hello"`).should.be(S(5));
+}
