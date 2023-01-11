@@ -1,5 +1,6 @@
 module text.json.Decode;
 
+import boilerplate : AliasThis;
 import funkwerk.stdx.data.json.lexer;
 import funkwerk.stdx.data.json.parser;
 import meta.attributesOrNothing;
@@ -293,7 +294,8 @@ public template decodeJsonInternal(T, alias transform, Flag!"logErrors" logError
                                 enum string[] aliasThisMembers = [__traits(getAliasThis, T)];
                                 enum memberIsAliasedToThis = aliasThisMembers
                                     .map!removeTrailingUnderline
-                                    .canFind(constructorField.removeTrailingUnderline);
+                                    .canFind(constructorField.removeTrailingUnderline)
+                                    || udaIndex!(AliasThis, attributes) != -1;
 
                                 static if (!memberIsAliasedToThis)
                                 {
@@ -319,6 +321,8 @@ public template decodeJsonInternal(T, alias transform, Flag!"logErrors" logError
                 {{
                     enum builderField = optionallyRemoveTrailingUnderline!constructorField;
                     alias Type = SafeUnqual!(__traits(getMember, T.ConstructorInfo.FieldInfo, constructorField).Type);
+                    alias attributes = AliasSeq!(
+                        __traits(getMember, T.ConstructorInfo.FieldInfo, constructorField).attributes);
 
                     static if (is(Type : Nullable!Arg, Arg))
                     {
@@ -333,7 +337,8 @@ public template decodeJsonInternal(T, alias transform, Flag!"logErrors" logError
                         enum string[] aliasThisMembers = [__traits(getAliasThis, T)];
                         enum memberIsAliasedToThis = aliasThisMembers
                             .map!removeTrailingUnderline
-                            .canFind(constructorField.removeTrailingUnderline);
+                            .canFind(constructorField.removeTrailingUnderline)
+                            || udaIndex!(AliasThis, attributes) != -1;
                         enum useDefault = __traits(getMember, T.ConstructorInfo.FieldInfo, constructorField)
                             .useDefault;
 

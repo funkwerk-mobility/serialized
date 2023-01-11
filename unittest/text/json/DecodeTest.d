@@ -226,6 +226,38 @@ unittest
     actual.should.equal(expected);
 }
 
+@("@AliasThis is decoded from inline keys")
+unittest
+{
+    struct A
+    {
+        int value2;
+
+        mixin(GenerateAll);
+    }
+
+    struct B
+    {
+        int value1;
+
+        @AliasThis
+        A a;
+
+        mixin(GenerateAll);
+    }
+
+    // given
+    const text = `{ "value1": 3, "value2": 5 }`;
+
+    // when
+    const actual = decode!B(text);
+
+    // then
+    const expected = B(3, A(5));
+
+    actual.should.equal(expected);
+}
+
 @("alias-this is decoded from inline keys for aliased methods")
 unittest
 {
@@ -655,7 +687,7 @@ unittest
 
     // when/then
     text.decode!Value.should.throwA!JSONException(
-        "unittest/text/json/DecodeTest.d:651 - while decoding Value: Assertion failure");
+        "unittest/text/json/DecodeTest.d:683 - while decoding Value: Assertion failure");
 }
 
 @("non-default Nullable")

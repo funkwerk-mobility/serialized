@@ -1,5 +1,6 @@
 module text.json.Encode;
 
+import boilerplate : AliasThis;
 import meta.attributesOrNothing;
 import meta.never;
 import meta.SafeUnqual;
@@ -212,7 +213,8 @@ do
                 = optionallyRemoveTrailingUnderline!lhs== optionallyRemoveTrailingUnderline!rhs;
             enum memberIsAliasedToThis = anySatisfy!(
                 ApplyLeft!(sameField, constructorField),
-                __traits(getAliasThis, Type));
+                __traits(getAliasThis, Type))
+                || udaIndex!(AliasThis, attributes) != -1;
 
             static if (memberIsAliasedToThis)
             {

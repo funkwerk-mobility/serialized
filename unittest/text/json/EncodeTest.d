@@ -190,6 +190,38 @@ template encodeTests(bool useEncodeJson)
         actual.should.equal(expected);
     }
 
+    @(prefix ~ "@AliasThis is encoded inline")
+    unittest
+    {
+        struct A
+        {
+            int value2;
+
+            mixin(GenerateAll);
+        }
+
+        struct B
+        {
+            int value1;
+
+            @AliasThis
+            A a;
+
+            mixin(GenerateAll);
+        }
+
+        // given
+        const value = B(3, A(5));
+
+        // when
+        const actual = testEncode(value);
+
+        // then
+        const expected = `{ "value1": 3, "value2": 5 }`.parseJSON;
+
+        actual.should.equal(expected);
+    }
+
     @(prefix ~ "alias-this is encoded inline for aliased methods")
     unittest
     {
