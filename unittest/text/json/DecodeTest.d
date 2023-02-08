@@ -80,7 +80,7 @@ unittest
     decode!OptionalValues(`{ "intValue": "" }`).should.throwA!JSONException
         (`Invalid JSON: text.json.DecodeTest.OptionalValues.intValue expected int, but got ""`);
     decode!OptionalValues(`{ "enumValue": "B" }`).should.throwA!JSONException
-        (`Invalid JSON: text.json.DecodeTest.OptionalValues.enumValue expected member of Enum, but got "B"`);
+        (`Invalid JSON: text.json.DecodeTest.OptionalValues.enumValue expected member of Enum (A), but got "B"`);
     decode!OptionalValues(`{ "enumValue": 5 }`).should.throwA!JSONException
         (`Invalid JSON: text.json.DecodeTest.OptionalValues.enumValue expected enum string, but got 5`);
     decode!OptionalValues(`{ "stringValue": 5 }`).should.throwA!JSONException

@@ -452,6 +452,8 @@ if (is(T == enum))
 {
     private T decodeValue(JsonStream)(ref JsonStream jsonStream, lazy string target)
     {
+        import text.json.Enum : genericDecodeEnum;
+
         scope(success)
         {
             jsonStream.popFront;
@@ -462,16 +464,7 @@ if (is(T == enum))
         {
             string str = jsonStream.front.literal.string;
 
-            try
-            {
-                return parse!(Unqual!T)(str);
-            }
-            catch (ConvException exception)
-            {
-                throw new JSONException(
-                    format!"Invalid JSON:%s expected member of %s, but got \"%s\""
-                        (target ? (" " ~ target) : null, T.stringof, str));
-            }
+            return genericDecodeEnum!(T, No.expectScreaming)(str, target);
         }
         throw new JSONException(
             format!"Invalid JSON:%s expected enum string, but got %s"(

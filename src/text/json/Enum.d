@@ -52,29 +52,54 @@ if (is(T == enum))
 {
     U decodeEnum(U : T)(const string text)
     {
-        import std.conv : to;
-        import std.exception : enforce;
-        import std.format : format;
-        import std.traits : EnumMembers;
+        return genericDecodeEnum!(U, Yes.expectScreaming)(text);
+    }
+}
 
-        enforce!JSONException(!text.empty, "expected member of " ~ T.stringof);
+package T genericDecodeEnum(T, Flag!"expectScreaming" expectScreaming)(const string text, const string target = null)
+{
+    import std.conv : to;
+    import std.exception : enforce;
+    import std.format : format;
+    import std.traits : EnumMembers;
 
-        switch (text)
+    version (strict)
+    {
+        enum bool checkCamelCase = expectScreaming == false;
+        enum bool checkScreamingCase = expectScreaming == true;
+    }
+    else
+    {
+        enum bool checkCamelCase = true;
+        enum bool checkScreamingCase = true;
+    }
+
+    switch (text)
+    {
+        static foreach (member; EnumMembers!T)
         {
-            static foreach (member; EnumMembers!T)
+            static if (checkCamelCase)
             {
-            case member.to!string.screamingSnake:
+                case member.to!string:
                     return member;
             }
-            default:
-                break;
+            static if (checkScreamingCase && member.to!string.screamingSnake != member.to!string)
+            {
+                case member.to!string.screamingSnake:
+                    return member;
+            }
         }
-
-        alias allScreamingSnakes = () => [EnumMembers!T].map!(a => a.to!string.screamingSnake);
-
-        throw new JSONException(
-            format!"expected member of %s (%-(%s, %)), not %s"(T.stringof, allScreamingSnakes(), text));
+        default:
+            break;
     }
+
+    enum allMembers = [EnumMembers!T]
+        .map!(a => (checkScreamingCase ? [a.to!string.screamingSnake] : []) ~ (checkCamelCase ? [a.to!string] : []))
+        .join
+        .uniq;
+
+    throw new JSONException(format!"Invalid JSON:%s expected member of %s (%-(%s, %)), but got \"%s\""(
+            (target ? (" " ~ target) : ""), T.stringof, allMembers, text));
 }
 
 private string screamingSnake(string text)
@@ -88,7 +113,10 @@ private string screamingSnake(string text)
 
     void flush()
     {
-        split ~= buffer;
+        if (!buffer.empty)
+        {
+            split ~= buffer;
+        }
         buffer = null;
     }
     foreach (ch; text)
@@ -122,7 +150,7 @@ unittest
     decodeJson!(Enum, decode)(JSONValue("IS_HTTP")).should.be(Enum.isHttp);
     decodeJson!(Enum, decode)(JSONValue("")).should.throwA!JSONException;
     decodeJson!(Enum, decode)(JSONValue("ISNT_HTTP")).should.throwA!JSONException(
-        "expected member of Enum (TEST_VALUE, IS_HTTP), not ISNT_HTTP");
+        `Invalid JSON: expected member of Enum (TEST_VALUE, testValue, IS_HTTP, isHttp), but got "ISNT_HTTP"`);
 }
 
 alias isWord = text => text.length > 0 && text.drop(1).all!isLower;
