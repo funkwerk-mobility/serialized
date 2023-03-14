@@ -1,10 +1,10 @@
 {
 	"fileVersion": 1,
 	"versions": {
-		"boilerplate": "1.8.3",
+		"boilerplate": "1.9.1",
 		"dshould": "1.7.1",
 		"dxml": "0.4.3",
-		"prettyprint": "1.0.8",
-		"unit-threaded": "2.1.2"
+		"prettyprint": "1.0.9",
+		"unit-threaded": "2.1.4"
 	}
 }

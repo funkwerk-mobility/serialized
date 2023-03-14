@@ -964,7 +964,7 @@ struct JSONLexerRange(Input, LexOptions options = LexOptions.init)
      * Note that the location is considered token meta data and thus does not
      * affect the comparison.
      */
-    bool opEquals(in ref JSONToken other) const nothrow @trusted
+    bool opEquals(in JSONToken other) const nothrow @trusted
     {
         if (this.kind != other.kind) return false;
 
@@ -976,8 +976,6 @@ struct JSONLexerRange(Input, LexOptions options = LexOptions.init)
             case Kind.string: return this.string == other.string;
         }
     }
-    /// ditto
-    bool opEquals(JSONToken other) const nothrow { return opEquals(other); }
 
     /**
      * Enables usage of $(D JSONToken) as an associative array key.
@@ -1159,13 +1157,13 @@ enum JSONTokenKind
     alias value this;
 
     /// Support equality comparisons
-    bool opEquals(in JSONString other) nothrow { return value == other.value; }
+    bool opEquals(JSONString other) nothrow { return value == other.value; }
     /// ditto
-    bool opEquals(in JSONString other) const nothrow { return this.value == other.value; }
+    bool opEquals(JSONString other) const nothrow { return this.value == other.value; }
     /// ditto
-    bool opEquals(in string other) nothrow { return this.value == other; }
+    bool opEquals(string other) nothrow { return this.value == other; }
     /// ditto
-    bool opEquals(in string other) const nothrow { return this.value == other; }
+    bool opEquals(string other) const nothrow { return this.value == other; }
 
     /// Support relational comparisons
     int opCmp(JSONString other) nothrow @trusted { import std.algorithm; return cmp(this.value, other.value); }
@@ -1619,7 +1617,7 @@ package bool unescapeStringLiteral(bool track_location, bool skip_utf_validation
     }
 }
 
-package bool unescapeStringLiteral(String)(in String str_lit, ref String dst)
+package bool unescapeStringLiteral(String)(String str_lit, ref String dst)
 nothrow {
     import std.string;
 

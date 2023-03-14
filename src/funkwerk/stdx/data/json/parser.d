@@ -754,7 +754,7 @@ struct JSONParserNode
      * Note that the location is considered part of the token and thus is
      * included in the comparison.
      */
-    bool opEquals(in ref JSONParserNode other)
+    bool opEquals(JSONParserNode other)
     const nothrow
     {
         if (this.kind != other.kind) return false;
@@ -766,8 +766,6 @@ struct JSONParserNode
             case Kind.key: return this.key == other.key;
         }
     }
-    /// ditto
-    bool opEquals(JSONParserNode other) const nothrow { return opEquals(other); }
 
     unittest
     {

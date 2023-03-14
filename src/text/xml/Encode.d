@@ -189,7 +189,8 @@ private template attrFilter(alias value, bool keepXmlAttributes, string member)
 {
     // double-check that the member has a type to work around https://issues.dlang.org/show_bug.cgi?id=22214
     static if (is(typeof(__traits(getMember, value, member)))
-        && __traits(compiles, { auto value = __traits(getMember, value, member); }))
+        && __traits(compiles, { auto value = __traits(getMember, value, member); })
+        && __traits(getOverloads, value, member).length <= 1)
     {
         alias attributes = AliasSeq!(__traits(getAttributes, __traits(getMember, value, member)));
         static if (keepXmlAttributes)
