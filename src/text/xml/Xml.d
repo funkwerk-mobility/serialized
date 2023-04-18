@@ -53,7 +53,7 @@ private static Nullable!string attributeNameImpl(alias function_, alias type, at
 {
     assert(__ctfe);
 
-    import meta.udaIndex : udaIndex;
+    import serialized.meta.udaIndex : udaIndex;
 
     alias functionIndex = udaIndex!function_;
     alias structIndex = udaIndex!type;

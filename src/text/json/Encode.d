@@ -1,9 +1,9 @@
 module text.json.Encode;
 
 import boilerplate : AliasThis;
-import meta.attributesOrNothing;
-import meta.never;
-import meta.SafeUnqual;
+import serialized.meta.attributesOrNothing;
+import serialized.meta.never;
+import serialized.meta.SafeUnqual;
 import std.datetime;
 import std.format;
 import std.json;

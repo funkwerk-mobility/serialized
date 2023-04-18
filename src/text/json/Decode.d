@@ -3,8 +3,8 @@ module text.json.Decode;
 import boilerplate : AliasThis;
 import funkwerk.stdx.data.json.lexer;
 import funkwerk.stdx.data.json.parser;
-import meta.attributesOrNothing;
-import meta.never;
+import serialized.meta.attributesOrNothing;
+import serialized.meta.never;
 import std.algorithm : canFind, map;
 import std.conv;
 import std.format;
@@ -87,7 +87,7 @@ public template decodeJsonInternal(T, alias transform, Flag!"logErrors" logError
     {
         import boilerplate.util : formatNamed, optionallyRemoveTrailingUnderline, removeTrailingUnderline, udaIndex;
         import core.exception : AssertError;
-        import meta.SafeUnqual : SafeUnqual;
+        import serialized.meta.SafeUnqual : SafeUnqual;
         import std.exception : enforce;
         import std.meta : AliasSeq, anySatisfy, ApplyLeft;
         import std.range : array, assocArray, ElementType, enumerate;

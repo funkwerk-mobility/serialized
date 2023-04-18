@@ -3,7 +3,7 @@ module text.xml.Encode;
 import boilerplate.util;
 import dxml.util;
 import dxml.writer;
-import meta.attributesOrNothing;
+import serialized.meta.attributesOrNothing;
 import std.array;
 import std.meta;
 import std.sumtype : match, SumType;

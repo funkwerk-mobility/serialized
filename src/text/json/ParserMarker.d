@@ -2,7 +2,7 @@ module text.json.ParserMarker;
 
 import funkwerk.stdx.data.json.lexer;
 import funkwerk.stdx.data.json.parser;
-import meta.never;
+import serialized.meta.never;
 import std.json;
 import std.typecons;
 import text.json.Decode;

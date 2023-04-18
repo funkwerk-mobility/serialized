@@ -1,4 +1,4 @@
-module meta.attributesOrNothing;
+module serialized.meta.attributesOrNothing;
 
 template attributesOrNothing(T)
 {

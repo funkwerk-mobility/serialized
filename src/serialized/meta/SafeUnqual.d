@@ -1,4 +1,4 @@
-module meta.SafeUnqual;
+module serialized.meta.SafeUnqual;
 
 import std.traits : Unqual;
 

@@ -1,4 +1,4 @@
-module meta.never;
+module serialized.meta.never;
 
 /**
  * A function that fails when called with any argument.

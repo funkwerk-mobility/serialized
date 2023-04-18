@@ -2,9 +2,9 @@ module text.xml.Decode;
 
 import boilerplate.util : udaIndex;
 static import dxml.util;
-import meta.attributesOrNothing;
-import meta.never;
-import meta.SafeUnqual;
+import serialized.meta.attributesOrNothing;
+import serialized.meta.never;
+import serialized.meta.SafeUnqual;
 import std.format : format;
 import std.sumtype;
 import text.xml.Tree;

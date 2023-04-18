@@ -1,4 +1,4 @@
-module meta.udaIndex;
+module serialized.meta.udaIndex;
 
 import std.traits : isFunction;
 
