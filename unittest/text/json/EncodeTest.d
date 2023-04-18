@@ -130,6 +130,38 @@ template encodeTests(bool useEncodeJson)
         actual.should.equal(expected);
     }
 
+    @(prefix ~ "custom encoders can chain")
+    unittest
+    {
+        // given
+        alias transform = first => Second(first.a);
+
+        @(Json.Encode!transform)
+        struct First
+        {
+            int a;
+
+            mixin(GenerateAll);
+        }
+
+        struct Second
+        {
+            int b;
+
+            mixin(GenerateAll);
+        }
+
+        const value = First(5);
+
+        // when
+        auto actual = testEncode(value);
+
+        // then
+        const expected = `{ "b": 5 }`.parseJSON;
+
+        actual.should.equal(expected);
+    }
+
     @(prefix ~ "enums are encoded as strings")
     unittest
     {

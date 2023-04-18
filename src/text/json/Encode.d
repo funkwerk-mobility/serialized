@@ -79,13 +79,13 @@ private void encodeJsonStream(T, alias transform, Range, attributes...)(ref Rang
         {
             static if (__traits(compiles, encodeFunction!(typeof(value), transform, attributes)))
             {
-                auto jsonValue = encodeFunction!(typeof(value), transform, attributes)(value);
+                auto nextValue = encodeFunction!(typeof(value), transform, attributes)(value);
             }
             else
             {
-                auto jsonValue = encodeFunction(value);
+                auto nextValue = encodeFunction(value);
             }
-            output.put(JSONOutputToken(jsonValue));
+            encodeJsonStream!(typeof(nextValue), transform, Range)(output, nextValue);
         }
         else static if (__traits(compiles, encodeValue(output, value)))
         {
