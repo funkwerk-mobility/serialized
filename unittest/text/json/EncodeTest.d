@@ -315,6 +315,124 @@ template encodeTests(bool useEncodeJson)
         actual.should.equal(expected);
     }
 
+    @(prefix ~ "alias-this overlapped field is taken from the parent")
+    unittest
+    {
+        struct Inner
+        {
+            int a;
+
+            mixin(GenerateAll);
+        }
+
+        struct Value
+        {
+            int a;
+
+            Inner inner;
+
+            alias inner this;
+
+            mixin(GenerateAll);
+        }
+
+        // given
+        const value = Value(2, Inner(3));
+
+        // when
+        auto actual = testEncode(value);
+
+        // then
+        const expected = `{ "a": 2 }`.parseJSON;
+
+        actual.should.equal(expected);
+    }
+
+    @(prefix ~ "alias-this overlapped field is taken from parent instead of JSONValue")
+    unittest
+    {
+        struct Value
+        {
+            int a;
+
+            JSONValue json;
+
+            alias json this;
+
+            mixin(GenerateAll);
+        }
+
+        // given
+        const value = Value(2, JSONValue(["a": 3]));
+
+        // when
+        auto actual = testEncode(value);
+
+        // then
+        const expected = `{ "a": 2 }`.parseJSON;
+
+        actual.should.equal(expected);
+    }
+
+    @(prefix ~ "missing optional alias-this overlapped field is still masked")
+    unittest
+    {
+        struct Inner
+        {
+            int a;
+
+            mixin(GenerateAll);
+        }
+
+        struct Value
+        {
+            Nullable!int a;
+
+            Inner inner;
+
+            alias inner this;
+
+            mixin(GenerateAll);
+        }
+
+        // given
+        const value = Value(Nullable!int(), Inner(3));
+
+        // when
+        auto actual = testEncode(value);
+
+        // then
+        const expected = `{ "a": null }`.parseJSON;
+
+        actual.should.equal(expected);
+    }
+
+    @(prefix ~ "alias-this overlapped fields are mixed with JSONValue")
+    unittest
+    {
+        struct Value
+        {
+            int a;
+
+            JSONValue json;
+
+            alias json this;
+
+            mixin(GenerateAll);
+        }
+
+        // given
+        const value = Value(2, JSONValue(["a": 3, "b": 4]));
+
+        // when
+        auto actual = testEncode(value);
+
+        // then
+        const expected = `{ "a": 2, "b": 4 }`.parseJSON;
+
+        actual.should.equal(expected);
+    }
+
     @(prefix ~ "transform functions may modify the values that are encoded")
     unittest
     {

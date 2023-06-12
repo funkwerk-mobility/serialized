@@ -142,13 +142,15 @@ private void encodeJsonStream(T, alias transform, Range, attributes...)(ref Rang
             }
 
             output.put(JSONOutputToken.objectStart);
-            encodeStruct!(T, transform, Range, attributes)(output, value);
+            encodeObject!(T, transform, Range, [], attributes)(output, value);
             output.put(JSONOutputToken.objectEnd);
         }
     }
 }
 
-private void encodeStruct(Type, alias transform, Range, attributes...)(ref Range output, const Type value)
+private void encodeObject(Type, alias transform, Range, string[] mask, attributes...)(
+    ref Range output, const Type value)
+if (!is(Unqual!Type == JSONValue))
 in
 {
     static if (is(T == class))
@@ -159,7 +161,8 @@ in
 do
 {
     import boilerplate.util : optionallyRemoveTrailingUnderline, removeTrailingUnderline, udaIndex;
-    import std.meta : AliasSeq, anySatisfy, ApplyLeft;
+    import std.algorithm : canFind, map;
+    import std.meta : AliasSeq, aliasSeqOf, anySatisfy, ApplyLeft, Filter;
     import std.traits : fullyQualifiedName;
 
     static assert(
@@ -167,6 +170,33 @@ do
         fullyQualifiedName!Type ~ " does not have a boilerplate constructor!");
 
     alias Info = Tuple!(string, "builderField", string, "constructorField");
+
+    enum string[] aliasedMembers = [__traits(getAliasThis, Type)];
+    enum isAliasedToThis(string constructorField) = aliasedMembers
+        .map!removeTrailingUnderline
+        .canFind(constructorField.removeTrailingUnderline)
+        || udaIndex!(AliasThis,
+            __traits(getMember, Type.ConstructorInfo.FieldInfo, constructorField).attributes) != -1;
+
+    template fieldName(string constructorField)
+    {
+        alias attributes = AliasSeq!(
+            __traits(getMember, Type.ConstructorInfo.FieldInfo, constructorField).attributes);
+
+        static if (udaIndex!(Json, attributes) != -1)
+        {
+            enum fieldName = attributes[udaIndex!(Json, attributes)].name;
+        }
+        else
+        {
+            enum fieldName = constructorField.removeTrailingUnderline;
+        }
+    }
+
+    enum notAliasedToThis(string constructorField) = !isAliasedToThis!constructorField;
+    enum string[] maskedFields = [
+        staticMap!(fieldName, Filter!(notAliasedToThis, aliasSeqOf!(Type.ConstructorInfo.fields))),
+    ];
 
     static foreach (string constructorField; Type.ConstructorInfo.fields)
     {{
@@ -194,56 +224,67 @@ do
             enum getMemberValue = "memberValue";
         }
 
-        alias attributes = AliasSeq!(constructorFieldSymbol.attributes);
-
-        static if (udaIndex!(Json, attributes) != -1)
-        {
-            enum name = attributes[udaIndex!(Json, attributes)].name;
-        }
-        else
-        {
-            enum name = constructorField.removeTrailingUnderline;
-        }
+        alias fieldAttributes = AliasSeq!(constructorFieldSymbol.attributes);
+        enum name = fieldName!constructorField;
 
         if (includeMember)
         {
             auto finalMemberValue = mixin(getMemberValue);
 
-            enum sameField(string lhs, string rhs)
-                = optionallyRemoveTrailingUnderline!lhs== optionallyRemoveTrailingUnderline!rhs;
-            enum memberIsAliasedToThis = anySatisfy!(
-                ApplyLeft!(sameField, constructorField),
-                __traits(getAliasThis, Type))
-                || udaIndex!(AliasThis, attributes) != -1;
-
-            static if (memberIsAliasedToThis)
+            static if (isAliasedToThis!constructorField)
             {
-                encodeStruct!(typeof(finalMemberValue), transform, Range, attributes)(
+                // must be a type that can be flat-encoded (without `{}`).
+                encodeObject!(typeof(finalMemberValue), transform, Range, mask ~ maskedFields, fieldAttributes)(
                     output, finalMemberValue);
             }
             else
             {
-                output.put(JSONOutputToken.key(name));
-                encodeJsonStream!(typeof(finalMemberValue), transform, Range, attributes)(
-                    output, finalMemberValue);
+                if (!mask.canFind(name))
+                {
+                    output.put(JSONOutputToken.key(name));
+                    encodeJsonStream!(typeof(finalMemberValue), transform, Range, fieldAttributes)(
+                        output, finalMemberValue);
+                }
             }
         }
         else if (!useDefault)
         {
-            output.put(JSONOutputToken.key(name));
-            output.put(JSONOutputToken(null));
+            if (!mask.canFind(name))
+            {
+                output.put(JSONOutputToken.key(name));
+                output.put(JSONOutputToken(null));
+            }
         }
     }}
 }
 
-private void encodeJsonStream(T : JSONValue, alias transform, Range, attributes...)(
-    ref Range output, const T value)
+private void encodeObject(Type, alias transform, Range, string[] mask, attributes...)(
+    ref Range output, const Type json)
+if (is(Unqual!Type == JSONValue))
+{
+    import std.algorithm : canFind;
+    import std.exception : enforce;
+
+    enforce!JSONException(json.type == JSONType.object,
+        format!"cannot encode an alias-this JSONValue that is not an object, but %s"(json));
+    foreach (key, value; json.object)
+    {
+        if (!mask.canFind(key))
+        {
+            output.put(JSONOutputToken.key(key));
+            output.put(JSONOutputToken(value));
+        }
+    }
+}
+
+private void encodeValue(T, Range)(ref Range output, const T value)
+if (is(Unqual!T == JSONValue))
 {
     output.put(JSONOutputToken(value));
 }
 
 private void encodeValue(T, Range)(ref Range output, T value)
-if (!is(T: Nullable!Arg, Arg))
+if (!is(T: Nullable!Arg, Arg) && !is(Unqual!T == JSONValue))
 {
     import text.xml.Convert : Convert;
 
