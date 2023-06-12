@@ -5,7 +5,7 @@ import funkwerk.stdx.data.json.lexer;
 import funkwerk.stdx.data.json.parser;
 import serialized.meta.attributesOrNothing;
 import serialized.meta.never;
-import std.algorithm : canFind, map;
+import std.algorithm : canFind, filter, map;
 import std.conv;
 import std.format;
 import std.json : JSONException, JSONValue;
@@ -64,9 +64,10 @@ public template decodeJson(T, alias transform, Flag!"logErrors" logErrors, attri
         // Don't attempt to speculatively instantiate decoder if logErrors is off anyways.
         // Avoids combinatorial explosion on deep errors.
         static if (logErrors == No.logErrors
-            || __traits(compiles, decodeJsonInternal!(T, transform, No.logErrors, attributes)(jsonStream, target)))
+            || __traits(compiles, decodeJsonInternal!(T, transform, No.logErrors, [], attributes)(
+                jsonStream, target)))
         {
-            return decodeJsonInternal!(T, transform, No.logErrors, attributes)(jsonStream, target);
+            return decodeJsonInternal!(T, transform, No.logErrors, [], attributes)(jsonStream, target);
         }
         else
         {
@@ -74,13 +75,13 @@ public template decodeJson(T, alias transform, Flag!"logErrors" logErrors, attri
             {
                 pragma(msg, "Error trying to decode " ~ fullyQualifiedName!T ~ ":");
             }
-            return decodeJsonInternal!(T, transform, logErrors, attributes)(jsonStream, target);
+            return decodeJsonInternal!(T, transform, logErrors, [], attributes)(jsonStream, target);
         }
     }
 }
 
 // lazy string target documents the member or array index which is being decoded.
-public template decodeJsonInternal(T, alias transform, Flag!"logErrors" logErrors, attributes...)
+public template decodeJsonInternal(T, alias transform, Flag!"logErrors" logErrors, string[] mask, attributes...)
 {
     public T decodeJsonInternal(JsonStream)(ref JsonStream jsonStream, lazy string target)
     in (isJSONParserNodeInputRange!JsonStream)
@@ -89,12 +90,12 @@ public template decodeJsonInternal(T, alias transform, Flag!"logErrors" logError
         import core.exception : AssertError;
         import serialized.meta.SafeUnqual : SafeUnqual;
         import std.exception : enforce;
-        import std.meta : AliasSeq, anySatisfy, ApplyLeft;
+        import std.meta : AliasSeq, aliasSeqOf, anySatisfy, ApplyLeft, Filter;
         import std.range : array, assocArray, ElementType, enumerate;
 
         static if (is(Unqual!T == JSONValue))
         {
-            return decodeJSONValue(jsonStream);
+            return decodeJSONValue(jsonStream, mask);
         }
         else static if (__traits(compiles, isCallable!(transform!T)) && isCallable!(transform!T))
         {
@@ -105,7 +106,8 @@ public template decodeJsonInternal(T, alias transform, Flag!"logErrors" logError
             static assert(!is(EncodedType == T),
                     "`transform` must not return the same type as it takes (infinite recursion).");
 
-            return transform!T(.decodeJson!(EncodedType, transform, logErrors, attributes)(jsonStream, target));
+            return transform!T(.decodeJson!(EncodedType, transform, logErrors, attributes)(
+                jsonStream, target));
         }
         else
         {
@@ -122,7 +124,7 @@ public template decodeJsonInternal(T, alias transform, Flag!"logErrors" logError
                     alias decodeFunction = typeAttributes[udaIndex!(Json.Decode, typeAttributes)].DecodeFunction;
                 }
 
-                JSONValue value = decodeJSONValue(jsonStream);
+                JSONValue value = decodeJSONValue(jsonStream, mask);
 
                 static if (__traits(isTemplate, decodeFunction))
                 {
@@ -155,6 +157,11 @@ public template decodeJsonInternal(T, alias transform, Flag!"logErrors" logError
 
                 jsonStream.readObject((string key) @trusted
                 {
+                    if (mask.canFind(key))
+                    {
+                        jsonStream.skipValue;
+                        return;
+                    }
                     auto value = .decodeJson!(Unqual!V, transform, logErrors, attributes)(
                         jsonStream, format!`%s[%s]`(target, key));
 
@@ -238,8 +245,41 @@ public template decodeJsonInternal(T, alias transform, Flag!"logErrors" logError
                     format!"Invalid JSON:%s expected object, but got %s"(
                         target ? (" " ~ target) : null, jsonStream.decodeJSONValue));
 
+                enum string[] aliasedMembers = [__traits(getAliasThis, T)];
+                enum isAliasedToThis(string constructorField) = aliasedMembers
+                    .map!removeTrailingUnderline
+                    .canFind(constructorField.removeTrailingUnderline)
+                    || udaIndex!(AliasThis,
+                        __traits(getMember, T.ConstructorInfo.FieldInfo, constructorField).attributes) != -1;
+
+                template fieldName(string constructorField)
+                {
+                    alias attributes = AliasSeq!(
+                        __traits(getMember, T.ConstructorInfo.FieldInfo, constructorField).attributes);
+
+                    static if (udaIndex!(Json, attributes) != -1)
+                    {
+                        enum fieldName = attributes[udaIndex!(Json, attributes)].name;
+                    }
+                    else
+                    {
+                        enum fieldName = constructorField.removeTrailingUnderline;
+                    }
+                }
+
+                enum notAliasedToThis(string constructorField) = !isAliasedToThis!constructorField;
+                enum string[] maskedFields = [
+                    staticMap!(fieldName, Filter!(notAliasedToThis, aliasSeqOf!(T.ConstructorInfo.fields))),
+                ];
+
                 jsonStream.readObject((string key) @trusted
                 {
+                    if (mask.canFind(key))
+                    {
+                        jsonStream.skipValue;
+                        return;
+                    }
+
                     bool keyUsed = false;
 
                     static foreach (fieldIndex, string constructorField; T.ConstructorInfo.fields)
@@ -262,14 +302,7 @@ public template decodeJsonInternal(T, alias transform, Flag!"logErrors" logError
                             enum isNullable = false;
                         }
 
-                        static if (udaIndex!(Json, attributes) != -1)
-                        {
-                            enum name = attributes[udaIndex!(Json, attributes)].name;
-                        }
-                        else
-                        {
-                            enum name = constructorField.removeTrailingUnderline;
-                        }
+                        enum name = fieldName!constructorField;
 
                         if (key == name)
                         {
@@ -291,13 +324,7 @@ public template decodeJsonInternal(T, alias transform, Flag!"logErrors" logError
                             }
                             else
                             {
-                                enum string[] aliasThisMembers = [__traits(getAliasThis, T)];
-                                enum memberIsAliasedToThis = aliasThisMembers
-                                    .map!removeTrailingUnderline
-                                    .canFind(constructorField.removeTrailingUnderline)
-                                    || udaIndex!(AliasThis, attributes) != -1;
-
-                                static if (!memberIsAliasedToThis)
+                                static if (!isAliasedToThis!constructorField)
                                 {
                                     __traits(getMember, builder, builderField)
                                         = .decodeJson!(DecodeType, transform, logErrors, attributes)(
@@ -321,7 +348,7 @@ public template decodeJsonInternal(T, alias transform, Flag!"logErrors" logError
                 {{
                     enum builderField = optionallyRemoveTrailingUnderline!constructorField;
                     alias Type = SafeUnqual!(__traits(getMember, T.ConstructorInfo.FieldInfo, constructorField).Type);
-                    alias attributes = AliasSeq!(
+                    alias fieldAttributes = AliasSeq!(
                         __traits(getMember, T.ConstructorInfo.FieldInfo, constructorField).attributes);
 
                     static if (is(Type : Nullable!Arg, Arg))
@@ -334,22 +361,20 @@ public template decodeJsonInternal(T, alias transform, Flag!"logErrors" logError
                     }
                     else
                     {
-                        enum string[] aliasThisMembers = [__traits(getAliasThis, T)];
-                        enum memberIsAliasedToThis = aliasThisMembers
-                            .map!removeTrailingUnderline
-                            .canFind(constructorField.removeTrailingUnderline)
-                            || udaIndex!(AliasThis, attributes) != -1;
                         enum useDefault = __traits(getMember, T.ConstructorInfo.FieldInfo, constructorField)
                             .useDefault;
 
-                        static if (memberIsAliasedToThis)
+                        static if (isAliasedToThis!constructorField)
                         {
                             // don't consume streamCopy; we may need it for an error later.
                             auto aliasStream = streamCopy;
+                            // Mask out fields that would have already been assigned in this type.
+                            // Ie. all fields that are not themselves alias-this.
+                            enum string[] fieldMask = mask ~ maskedFields;
 
                             // alias this: decode from the same json value as the whole object
                             __traits(getMember, builder, builderField)
-                                = .decodeJson!(Type, transform, logErrors, attributes)(
+                                = .decodeJsonInternal!(Type, transform, logErrors, fieldMask, fieldAttributes)(
                                     aliasStream, fullyQualifiedName!T ~ "." ~ constructorField);
                         }
                         else static if (!useDefault)
@@ -542,7 +567,7 @@ if (__traits(compiles, T.fromString(string.init)))
     }
 }
 
-private JSONValue decodeJSONValue(JsonStream)(ref JsonStream jsonStream)
+private JSONValue decodeJSONValue(JsonStream)(ref JsonStream jsonStream, const string[] mask = null)
 in (isJSONParserNodeInputRange!JsonStream)
 {
     with (JSONParserNodeKind) final switch (jsonStream.front.kind)
@@ -558,6 +583,11 @@ in (isJSONParserNodeInputRange!JsonStream)
             JSONValue[string] children;
             jsonStream.readObject(delegate void(string key) @trusted
             {
+                if (mask.canFind(key))
+                {
+                    jsonStream.skipValue;
+                    return;
+                }
                 children[key] = .decodeJSONValue(jsonStream);
             });
             return JSONValue(children);

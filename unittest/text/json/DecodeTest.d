@@ -668,9 +668,63 @@ unittest
     text.decode!Container.should.equal(Container(Entry(["key": "value"])));
 }
 
+@("JSONValue alias-this matches all extra keys")
+unittest
+{
+    // given
+    const text = `{ "a": 1, "b": 2, "c": 3 }`;
+
+    struct Value
+    {
+        int b;
+
+        JSONValue extras;
+
+        alias extras this;
+
+        mixin(GenerateAll);
+    }
+
+    // when/then
+    text.decode!Value.should.equal(Value(2, JSONValue(["a": 1, "c": 3])));
+}
+
+@("alias-this does not match keys from the parent")
+unittest
+{
+    // given
+    const text = `{ "a": 1, "b": 2 }`;
+
+    struct Inner
+    {
+        @(This.Default!0)
+        int a;
+
+        int b;
+
+        mixin(GenerateAll);
+    }
+
+    struct Value
+    {
+        int a;
+
+        Inner inner;
+
+        alias inner this;
+
+        mixin(GenerateAll);
+    }
+
+    // when/then
+    text.decode!Value.should.equal(Value(1, Inner(2, 0)));
+}
+
 @("type with invariant")
 unittest
 {
+    import std.algorithm : endsWith;
+
     // given
     const text = `{ "a": 2, "b": 3 }`;
 
@@ -686,8 +740,8 @@ unittest
     }
 
     // when/then
-    text.decode!Value.should.throwA!JSONException(
-        "unittest/text/json/DecodeTest.d:683 - while decoding Value: Assertion failure");
+    text.decode!Value.should.throwA!JSONException
+        .where.msg.endsWith("while decoding Value: Assertion failure").should.be(true);
 }
 
 @("non-default Nullable")
