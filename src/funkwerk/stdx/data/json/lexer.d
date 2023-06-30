@@ -435,7 +435,9 @@ struct JSONLexerRange(Input, LexOptions options = LexOptions.init)
                     _input, dst, slice, &initAppender, _error, _loc.column
                 ))
             {
-                if (!appender_init) _front.string = slice;
+                // Dup to ensure we break any reference to the input stream,
+                // which will usually be much larger than the string literal.
+                if (!appender_init) _front.string = slice.idup;
                 else _front.string = dst.data;
             }
             else _front.kind = JSONTokenKind.error;
@@ -1186,7 +1188,8 @@ enum JSONTokenKind
     assert(s.value == "hello");
     t = s; assert(s == t);
     assert(&s.rawValue[0] is &h[0]);
-    assert(&s.value[0] is &h[1]);
+    // dupped to break reference to string
+    assert(&s.value[0] !is &h[1]);
 
     auto w = `"world\t!"`;
     s.rawValue = w;
@@ -1637,7 +1640,9 @@ nothrow {
             return false;
     }
 
-    dst = appender_init ? app.data : slice;
+    // Dup to ensure we break any reference to the input stream,
+    // which will usually be much larger than the string literal.
+    dst = appender_init ? app.data : slice.idup;
     return true;
 }
 
