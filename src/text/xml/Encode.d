@@ -294,6 +294,7 @@ private enum bool isLeafType(T, attributes...) =
     udaIndex!(Xml.Encode, attributes) != -1
     || udaIndex!(Xml.Encode, attributesOrNothing!T) != -1
     || is(T == string)
+    || is(T == enum)
     || __traits(compiles, { Convert.toString(T.init); });
 
 private string encodeLeafImpl(T, attributes...)(T value)
@@ -315,6 +316,12 @@ private string encodeLeafImpl(T, attributes...)(T value)
     else static if (is(T == string))
     {
         return value;
+    }
+    else static if (is(T == enum))
+    {
+        import serialized.util.SafeEnum : safeToString;
+
+        return value.safeToString;
     }
     else static if (__traits(compiles, Convert.toString(value)))
     {

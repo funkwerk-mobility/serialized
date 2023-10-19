@@ -288,14 +288,14 @@ if (!is(T: Nullable!Arg, Arg) && !is(Unqual!T == JSONValue))
 {
     import text.xml.Convert : Convert;
 
-    static if (__traits(compiles, value.to!string))
+    static if (is(T == enum))
     {
-        output.put(JSONOutputToken(value.to!string));
-    }
-    else static if (is(T == enum))
-    {
-        import std.conv : to;
+        import serialized.util.SafeEnum : safeToString;
 
+        output.put(JSONOutputToken(value.safeToString));
+    }
+    else static if (__traits(compiles, value.to!string))
+    {
         output.put(JSONOutputToken(value.to!string));
     }
     else static if (isBoolean!T || isIntegral!T || isFloatingPoint!T || isSomeString!T)

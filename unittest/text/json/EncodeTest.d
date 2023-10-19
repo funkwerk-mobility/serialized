@@ -189,6 +189,24 @@ template encodeTests(bool useEncodeJson)
         actual.should.equal(expected);
     }
 
+    @(prefix ~ "enum supports keyword")
+    unittest
+    {
+        // given
+        enum Enum
+        {
+            void_
+        }
+
+        // when
+        const actual = testEncode(Enum.void_);
+
+        // then
+        enum expected = `"void"`.parseJSON;
+
+        actual.should.equal(expected);
+    }
+
     @(prefix ~ "alias-this is encoded inline")
     unittest
     {

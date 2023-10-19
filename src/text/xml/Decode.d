@@ -330,6 +330,12 @@ private auto decodeAttributeLeaf(T, string name, attributes...)(XmlNode node)
 
         return decodeFunction(dxml.util.decodeXML(node.attributes[name]));
     }
+    else static if (is(T == enum))
+    {
+        import serialized.util.SafeEnum : safeToEnum;
+
+        return dxml.util.decodeXML(node.attributes[name]).safeToEnum!T;
+    }
     else
     {
         return node.require!T(name);
@@ -340,6 +346,8 @@ private auto decodeAttributeLeaf(T, string name, attributes...)(XmlNode node)
 enum isNodeLeafType(T, attributes...) =
     udaIndex!(Xml.Decode, attributes) != -1
     || udaIndex!(Xml.Decode, attributesOrNothing!T) != -1
+    || is(T == string)
+    || is(T == enum)
     || __traits(compiles, XmlNode.init.require!(SafeUnqual!T)());
 
 private auto decodeNodeLeaf(T, attributes...)(XmlNode node)
@@ -369,6 +377,12 @@ private auto decodeNodeLeaf(T, attributes...)(XmlNode node)
     else static if (is(T == string))
     {
         return dxml.util.decodeXML(node.text).normalize;
+    }
+    else static if (is(T == enum))
+    {
+        import serialized.util.SafeEnum : safeToEnum;
+
+        return dxml.util.decodeXML(node.text).normalize.safeToEnum!T;
     }
     else
     {

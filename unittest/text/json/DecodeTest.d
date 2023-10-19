@@ -193,6 +193,24 @@ unittest
     value.should.equal(expected);
 }
 
+@("enum supports keyword")
+unittest
+{
+    enum Enum
+    {
+        void_,
+    }
+
+    // given
+    const text = `"void"`;
+
+    // when
+    const value = decode!Enum(text);
+
+    // then
+    value.should.equal(Enum.void_);
+}
+
 @("alias-this is decoded from inline keys")
 unittest
 {

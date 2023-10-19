@@ -72,6 +72,36 @@ unittest
     text.should.equal(expected);
 }
 
+@("enum field with underscore")
+unittest
+{
+    // given
+    enum Enum
+    {
+        void_
+    }
+
+    @(Xml.Element("element"))
+    struct Element
+    {
+        @(Xml.Attribute("enum"))
+        public Enum enum1;
+
+        @(Xml.Element("enum"))
+        public Enum enum2;
+
+        mixin(GenerateAll);
+    }
+
+    const expected = `<element enum="void"><enum>void</enum></element>`;
+
+    // when
+    auto text = encode(Element(Enum.void_, Enum.void_));
+
+    // then
+    text.should.equal(expected);
+}
+
 @("custom encoders are used on fields")
 unittest
 {

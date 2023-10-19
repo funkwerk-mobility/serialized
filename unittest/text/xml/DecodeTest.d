@@ -65,6 +65,42 @@ unittest
     value.should.equal(expected);
 }
 
+@("enum field with underscore")
+unittest
+{
+    // given
+    enum Enum
+    {
+        void_
+    }
+
+    @(Xml.Element("element"))
+    struct Element
+    {
+        @(Xml.Attribute("enum"))
+        public Enum enum1;
+
+        @(Xml.Element("enum"))
+        public Enum enum2;
+
+        mixin(GenerateAll);
+    }
+
+    const expected = Element(Enum.void_, Enum.void_);
+
+    // when
+    auto value = decode!Element(`
+    <element enum="void">
+        <enum>
+            void
+        </enum>
+    </element>
+    `);
+
+    // then
+    value.should.equal(expected);
+}
+
 @("custom decoders are used on fields")
 unittest
 {

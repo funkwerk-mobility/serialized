@@ -5,6 +5,7 @@ import funkwerk.stdx.data.json.lexer;
 import funkwerk.stdx.data.json.parser;
 import serialized.meta.attributesOrNothing;
 import serialized.meta.never;
+import serialized.util.SafeEnum;
 import std.algorithm : canFind, filter, map;
 import std.conv;
 import std.format;
@@ -489,7 +490,7 @@ if (is(T == enum))
 
             try
             {
-                return parse!(Unqual!T)(str);
+                return safeToEnum!(Unqual!T)(str);
             }
             catch (ConvException exception)
             {
