@@ -14,17 +14,15 @@ if (is(T == enum))
     {
         static foreach (member; [EnumMembers!T])
         {
-            enum memberStr = member.to!string;
-
-            static if (memberStr.endsWith("_") && reservedIdentifier!(memberStr[0 .. $ - 1]))
+            static if (member.to!string.endsWith("_") && reservedIdentifier!(member.to!string[0 .. $ - 1]))
             {
             // we had no choice but to add a _ to the back, as it was a reserved identifier
-            case memberStr[0 .. $ - 1]:
+            case member.to!string[0 .. $ - 1]:
                 return member;
             }
             else
             {
-            case memberStr:
+            case member.to!string:
                 return member;
             }
         }

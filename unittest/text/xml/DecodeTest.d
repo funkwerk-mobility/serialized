@@ -71,7 +71,8 @@ unittest
     // given
     enum Enum
     {
-        void_
+        void_,
+        foo_,
     }
 
     @(Xml.Element("element"))
