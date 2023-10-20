@@ -16,10 +16,10 @@ version (unittest) import dshould;
 string encodeEnum(T)(const T value)
 if (is(T == enum))
 {
-    import std.conv : to;
+    import serialized.util.SafeEnum : safeToString;
     import std.uni : toUpper;
 
-    const enumString = value.to!string;
+    const enumString = value.safeToString;
 
     return enumString.splitByPredicate!isWord.map!toUpper.join("_");
 }
@@ -33,12 +33,14 @@ unittest
     {
         testValue,
         isHttp,
+        void_,
     }
 
     alias encode = encodeEnum!Enum;
 
     encodeJson!(Enum, encode)(Enum.testValue).should.be(JSONValue("TEST_VALUE"));
     encodeJson!(Enum, encode)(Enum.isHttp).should.be(JSONValue("IS_HTTP"));
+    encodeJson!(Enum, encode)(Enum.void_).should.be(JSONValue("VOID"));
 }
 
 /**
@@ -52,7 +54,7 @@ if (is(T == enum))
 {
     U decodeEnum(U : T)(const string text)
     {
-        import std.conv : to;
+        import serialized.util.SafeEnum : safeToString;
         import std.exception : enforce;
         import std.format : format;
         import std.traits : EnumMembers;
@@ -63,14 +65,14 @@ if (is(T == enum))
         {
             static foreach (member; EnumMembers!T)
             {
-            case member.to!string.screamingSnake:
+            case member.safeToString.screamingSnake:
                     return member;
             }
             default:
                 break;
         }
 
-        alias allScreamingSnakes = () => [EnumMembers!T].map!(a => a.to!string.screamingSnake);
+        alias allScreamingSnakes = () => [EnumMembers!T].map!(a => a.safeToString.screamingSnake);
 
         throw new JSONException(
             format!"expected member of %s (%-(%s, %)), not %s"(T.stringof, allScreamingSnakes(), text));
@@ -111,6 +113,7 @@ unittest
     {
         testValue,
         isHttp,
+        void_,
     }
 
     alias decode = decodeEnum!Enum;
@@ -120,9 +123,10 @@ unittest
 
     decodeJson!(Enum, decode)(JSONValue("TEST_VALUE")).should.be(Enum.testValue);
     decodeJson!(Enum, decode)(JSONValue("IS_HTTP")).should.be(Enum.isHttp);
+    decodeJson!(Enum, decode)(JSONValue("VOID")).should.be(Enum.void_);
     decodeJson!(Enum, decode)(JSONValue("")).should.throwA!JSONException;
     decodeJson!(Enum, decode)(JSONValue("ISNT_HTTP")).should.throwA!JSONException(
-        "expected member of Enum (TEST_VALUE, IS_HTTP), not ISNT_HTTP");
+        "expected member of Enum (TEST_VALUE, IS_HTTP, VOID), not ISNT_HTTP");
 }
 
 alias isWord = text => text.length > 0 && text.drop(1).all!isLower;
