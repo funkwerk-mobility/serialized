@@ -144,6 +144,33 @@ unittest
     value.should.equal(expected);
 }
 
+@("element field has default")
+unittest
+{
+    import std.typecons : Nullable;
+
+    @(Xml.Element("root"))
+    struct Value
+    {
+        @(Xml.Element("foo"))
+        @(This.Default!false)
+        bool foo;
+
+        mixin(GenerateAll);
+    }
+
+    // given
+    const text = `<root></root>`;
+
+    // when
+    auto value = decode!Value(text);
+
+    // then
+    const expected = Value(false);
+
+    value.should.equal(expected);
+}
+
 @("field is Nullable default")
 unittest
 {

@@ -158,10 +158,24 @@ public auto decodeUnchecked(T, attributes...)(XmlNode node)
                     }
                     else
                     {
-                        auto child = node.requireChild(name);
+                        static if (__traits(getMember, T.ConstructorInfo.FieldInfo, constructorField).useDefault)
+                        {
+                            // missing element = default
+                            auto child = node.findChild(name);
 
-                        __traits(getMember, builder, builderField)
-                            = .decodeUnchecked!(DecodeType, attributes)(child);
+                            if (!child.isNull)
+                            {
+                                __traits(getMember, builder, builderField)
+                                    = decodeUnchecked!(DecodeType, attributes)(child.get);
+                            }
+                        }
+                        else
+                        {
+                            auto child = node.requireChild(name);
+
+                            __traits(getMember, builder, builderField)
+                                = .decodeUnchecked!(DecodeType, attributes)(child);
+                        }
                     }
                 }
                 else static if (is(DecodeType: U[], U))
