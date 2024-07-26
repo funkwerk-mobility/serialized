@@ -134,7 +134,7 @@ private void encodeNode(T, attributes...)(ref XMLWriter!(Appender!string) writer
             }
             else static if (udaIndex!(Xml.Text, memberAttrs) != -1)
             {
-                writer.writeText(memberValue.encodeText, Newline.no);
+                writer.writeText(encodeLeafImpl(memberValue).encodeText, Newline.no);
             }
             else static if (is(typeof(cast() memberValue) : SumType!U, U...))
             {

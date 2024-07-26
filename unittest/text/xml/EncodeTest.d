@@ -479,3 +479,22 @@ unittest
     // then
     text.should.equal(`<Container><Value value="1"/><Value value="2"/><Value value="3"/></Container>`);
 }
+
+@("SysTime as text")
+unittest
+{
+    @(Xml.Element)
+    struct Value
+    {
+        @(Xml.Text)
+        SysTime time;
+
+        mixin(GenerateThis);
+    }
+
+    // when
+    const text = Value(SysTime.fromISOExtString("2003-02-01T12:00:00")).encode;
+
+    // then
+    text.should.equal(`<Value>2003-02-01T12:00:00</Value>`);
+}
