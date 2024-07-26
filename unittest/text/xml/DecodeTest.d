@@ -497,6 +497,20 @@ private struct SumTypeFixture
     }
 }
 
+@("top-level sumtype")
+unittest
+{
+    with (SumTypeFixture)
+    {
+        alias Either = SumType!(A, B);
+
+        // given/when/then
+        decode!Either(`<A a="5"/>`).should.equal(Either(A(5)));
+
+        decode!Either(`<B b="3"/>`).should.equal(Either(B(3)));
+    }
+}
+
 @("immutable arrays")
 unittest
 {

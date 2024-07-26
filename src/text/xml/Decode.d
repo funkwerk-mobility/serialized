@@ -32,16 +32,23 @@ public T decodeXml(T)(XmlNode node)
 {
     import std.traits : fullyQualifiedName;
 
-    enum name = Xml.elementName!(__traits(getAttributes, T))(typeName!T);
+    static if (is(T : SumType!Types, Types...))
+    {
+        return decodeToplevelSumtype!Types(node);
+    }
+    else
+    {
+        enum name = Xml.elementName!(__traits(getAttributes, T))(typeName!T);
 
-    static assert(
-        !name.isNull,
-        fullyQualifiedName!T ~
-        ": type passed to text.xml.decode must have an Xml.Element attribute indicating its element name.");
+        static assert(
+            !name.isNull,
+            fullyQualifiedName!T ~
+            ": type passed to text.xml.decode must have an Xml.Element attribute indicating its element name.");
 
-    node.enforceName(name.get);
+        node.enforceName(name.get);
 
-    return decodeUnchecked!T(node);
+        return decodeUnchecked!T(node);
+    }
 }
 
 /**
@@ -295,6 +302,45 @@ private SumType!Types decodeSumType(Types...)(XmlNode node)
     auto result = decodedValues[].find!(a => !a.isNull).front.get;
 
     return result;
+}
+
+/// Ditto.
+private SumType!Types decodeToplevelSumtype(Types...)(XmlNode node)
+{
+    import std.algorithm : find, map, sum;
+    import std.exception : enforce;
+    import std.meta : AliasSeq, staticMap;
+    import std.range : front;
+    import std.typecons : Nullable;
+    import text.xml.XmlException : XmlException;
+
+    Nullable!(SumType!Types)[Types.length] decodedValues;
+
+    static foreach (i, Type; Types)
+    {{
+        alias attributes = AliasSeq!(__traits(getAttributes, Type));
+
+        static assert(
+            !Xml.elementName!attributes(typeName!Type).isNull,
+            fullyQualifiedName!Type ~
+            ": SumType component type must have an Xml.Element attribute indicating its element name.");
+
+        enum name = Xml.elementName!attributes(typeName!Type).get;
+
+        if (node.tag == name)
+        {
+            decodedValues[i] = SumType!Types(node.decodeUnchecked!Type);
+        }
+    }}
+
+    const matchedValues = decodedValues[].map!(a => a.isNull ? 0 : 1).sum;
+
+    enforce!XmlException(matchedValues != 0,
+        format!`Element "%s": no child element of %(%s, %)`(node.tag, [staticMap!(typeName, Types)]));
+    enforce!XmlException(matchedValues == 1,
+        format!`Element "%s": contained more than one of %(%s, %)`(node.tag, [staticMap!(typeName, Types)]));
+
+    return decodedValues[].find!(a => !a.isNull).front.get;
 }
 
 private SumType!Types[] decodeSumTypeArray(Types...)(XmlNode node)
