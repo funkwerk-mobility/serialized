@@ -37,12 +37,31 @@ do
     alias attributes = AliasSeq!(__traits(getAttributes, T));
     auto writer = xmlWriter(appender!string);
 
-    encodeNode!(T, attributes)(writer, value);
+    encodeNode!(T, Appender!string, attributes)(writer, value);
 
     return writer.output.data;
 }
 
-private void encodeNode(T, attributes...)(ref XMLWriter!(Appender!string) writer, const T value)
+/// Ditto.
+public void encode(T, Writer)(const T value, ref Writer writer)
+in
+{
+    static if (is(T == class))
+    {
+        assert(value !is null);
+    }
+}
+do
+{
+    mixin enforceTypeHasElementTag!(T, "type passed to text.xml.encode");
+
+    alias attributes = AliasSeq!(__traits(getAttributes, T));
+    auto xmlWriter = .xmlWriter(writer);
+
+    encodeNode!(T, Writer, attributes)(xmlWriter, value);
+}
+
+private void encodeNode(T, Writer, attributes...)(ref XMLWriter!Writer writer, const T value)
 {
     enum elementName = Xml.elementName!attributes(typeName!T).get;
 
@@ -130,7 +149,7 @@ private void encodeNode(T, attributes...)(ref XMLWriter!(Appender!string) writer
             {
                 enum string nameGet__ = name.get; // work around for weird compiler bug
 
-                encodeNodeImpl!(nameGet__, PlainMemberT, useDefault, memberAttrs)(writer, memberValue);
+                encodeNodeImpl!(nameGet__, PlainMemberT, Writer, useDefault, memberAttrs)(writer, memberValue);
             }
             else static if (udaIndex!(Xml.Text, memberAttrs) != -1)
             {
@@ -146,7 +165,7 @@ private void encodeNode(T, attributes...)(ref XMLWriter!(Appender!string) writer
     }
 }
 
-private void encodeSumType(T)(ref XMLWriter!(Appender!string) writer, const T value)
+private void encodeSumType(T, Writer)(ref XMLWriter!Writer writer, const T value)
 {
     value.match!(staticMap!((const value) {
         alias T = typeof(value);
@@ -165,7 +184,7 @@ private void encodeSumType(T)(ref XMLWriter!(Appender!string) writer, const T va
         alias attributes = AliasSeq!(__traits(getAttributes, BaseType));
         enum name = Xml.elementName!attributes(typeName!BaseType).get;
 
-        encodeNodeImpl!(name, T, false, attributes)(writer, value);
+        encodeNodeImpl!(name, T, Writer, false, attributes)(writer, value);
     }, T.Types));
 }
 
@@ -219,8 +238,8 @@ unittest
     static assert(attrFilter!(s, false, "T") == false);
 }
 
-private void encodeNodeImpl(string name, T, bool useDefault, attributes...)(ref XMLWriter!(Appender!string) writer,
-    const T value)
+private void encodeNodeImpl(string name, T, Writer, bool useDefault, attributes...)(
+    ref XMLWriter!Writer writer, const T value)
 {
     alias PlainT = typeof(cast() value);
 
@@ -237,7 +256,7 @@ private void encodeNodeImpl(string name, T, bool useDefault, attributes...)(ref 
     {
         if (!value.isNull)
         {
-            encodeNodeImpl!(name, Arg, false, attributes)(writer, value.get);
+            encodeNodeImpl!(name, Arg, Writer, false, attributes)(writer, value.get);
         }
         else if (!useDefault)
         {
@@ -280,12 +299,12 @@ private void encodeNodeImpl(string name, T, bool useDefault, attributes...)(ref 
 
         foreach (IterationType!PlainT a; value)
         {
-            encodeNodeImpl!(name, typeof(a), false, attributes)(writer, a);
+            encodeNodeImpl!(name, typeof(a), Writer, false, attributes)(writer, a);
         }
     }
     else
     {
-        encodeNode!(PlainT, attributes)(writer, value);
+        encodeNode!(PlainT, Writer, attributes)(writer, value);
     }
 }
 

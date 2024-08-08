@@ -12,211 +12,399 @@ import text.xml.Tree;
 import text.xml.Writer;
 import text.xml.Xml;
 
-@("fields tagged as Element are encoded as XML elements")
-unittest
+// All the tests are executed with both `encode(value)` (encodes to a string)
+// and `encode(value, writer)` (encodes to a writer).
+static foreach (bool streamEncode; [false, true])
 {
-    const expected =
-        `<root>` ~
-            `<IntValueElement>23</IntValueElement>` ~
-            `<StringValueElement>FOO</StringValueElement>` ~
-            `<BoolValueElement>true</BoolValueElement>` ~
-            `<NestedElement>` ~
-                `<Element>BAR</Element>` ~
-            `</NestedElement>` ~
-            `<ArrayElement>1</ArrayElement>` ~
-            `<ArrayElement>2</ArrayElement>` ~
-            `<ArrayElement>3</ArrayElement>` ~
-            `<DateElement>2000-01-02</DateElement>` ~
-            `<SysTimeElement>2000-01-02T10:00:00Z</SysTimeElement>` ~
-            `<ContentElement attribute="hello">World</ContentElement>` ~
-        `</root>`
-    ;
+    mixin encodeTests!(streamEncode);
+}
 
-    // given
-    const value = (){
-        import text.time.Convert : Convert;
+template encodeTests(bool streamEncode)
+{
+    static if (streamEncode)
+    {
+        enum prefix = "stream encode";
 
-        with (Value.Builder())
+        string testEncode(T)(T value)
         {
-            intValue = 23;
-            stringValue = "FOO";
-            boolValue = true;
-            nestedValue = NestedValue("BAR");
-            arrayValue = [1, 2, 3];
-            dateValue = Date(2000, 1, 2);
-            sysTimeValue = SysTime.fromISOExtString("2000-01-02T10:00:00Z");
-            contentValue = ContentValue("hello", "World");
-            return value;
+            auto writer = appender!string();
+
+            .encode(value, writer);
+            return writer[];
         }
-    }();
-
-    // when
-    auto text = encode(value);
-
-    // then
-    text.should.equal(expected);
-}
-
-@("fields tagged as Attribute are encoded as XML attributes")
-unittest
-{
-    const expected = `<root intAttribute="23"/>`;
-
-    // given
-    const valueWithAttribute = ValueWithAttribute(23);
-
-    // when
-    auto text = encode(valueWithAttribute);
-
-    // then
-    text.should.equal(expected);
-}
-
-@("enum field with underscore")
-unittest
-{
-    // given
-    enum Enum
+    }
+    else
     {
-        void_,
-        foo_,
+        enum prefix = "string encode";
+
+        string testEncode(T)(T value)
+        {
+            return .encode(value);
+        }
     }
 
-    @(Xml.Element("element"))
-    struct Element
+    @(prefix ~ ": fields tagged as Element are encoded as XML elements")
+    unittest
     {
-        @(Xml.Attribute("enum"))
-        public Enum enum1;
+        const expected =
+            `<root>` ~
+                `<IntValueElement>23</IntValueElement>` ~
+                `<StringValueElement>FOO</StringValueElement>` ~
+                `<BoolValueElement>true</BoolValueElement>` ~
+                `<NestedElement>` ~
+                    `<Element>BAR</Element>` ~
+                `</NestedElement>` ~
+                `<ArrayElement>1</ArrayElement>` ~
+                `<ArrayElement>2</ArrayElement>` ~
+                `<ArrayElement>3</ArrayElement>` ~
+                `<DateElement>2000-01-02</DateElement>` ~
+                `<SysTimeElement>2000-01-02T10:00:00Z</SysTimeElement>` ~
+                `<ContentElement attribute="hello">World</ContentElement>` ~
+            `</root>`
+        ;
 
-        @(Xml.Element("enum"))
-        public Enum enum2;
+        // given
+        const value = (){
+            import text.time.Convert : Convert;
 
-        mixin(GenerateAll);
+            with (Value.Builder())
+            {
+                intValue = 23;
+                stringValue = "FOO";
+                boolValue = true;
+                nestedValue = NestedValue("BAR");
+                arrayValue = [1, 2, 3];
+                dateValue = Date(2000, 1, 2);
+                sysTimeValue = SysTime.fromISOExtString("2000-01-02T10:00:00Z");
+                contentValue = ContentValue("hello", "World");
+                return value;
+            }
+        }();
+
+        // when
+        auto text = testEncode(value);
+
+        // then
+        text.should.equal(expected);
     }
 
-    const expected = `<element enum="void"><enum>void</enum></element>`;
-
-    // when
-    auto text = encode(Element(Enum.void_, Enum.void_));
-
-    // then
-    text.should.equal(expected);
-}
-
-@("custom encoders are used on fields")
-unittest
-{
-    // given
-    const value = ValueWithEncoders("bla", "bla");
-
-    // when
-    auto text = encode(value);
-
-    // then
-    const expected = `<root asFoo="foo"><asBar>bar</asBar></root>`;
-
-    text.should.equal(expected);
-}
-
-@("custom encoders are used on types")
-unittest
-{
-    @(Xml.Element("root"))
-    struct Value
+    @(prefix ~ ": fields tagged as Attribute are encoded as XML attributes")
+    unittest
     {
-        @(Xml.Element("foo"))
-        EncodeNodeTestType foo;
+        const expected = `<root intAttribute="23"/>`;
 
-        @(Xml.Attribute("bar"))
-        EncodeAttributeTestType bar;
+        // given
+        const valueWithAttribute = ValueWithAttribute(23);
+
+        // when
+        auto text = testEncode(valueWithAttribute);
+
+        // then
+        text.should.equal(expected);
     }
 
-    // given
-    const value = Value(EncodeNodeTestType(), EncodeAttributeTestType());
-
-    // when
-    auto text = .encode(value);
-
-    // then
-    const expected = `<root bar="123"><foo>123</foo></root>`;
-
-    text.should.equal(expected);
-}
-
-@("custom encoder on Nullable element")
-unittest
-{
-    @(Xml.Element("root"))
-    struct Value
+    @(prefix ~ ": enum field with underscore")
+    unittest
     {
-        @(Xml.Element("foo"))
-        @(Xml.Encode!encodeNodeTestType)
-        Nullable!EncodeNodeTestType foo;
+        // given
+        enum Enum
+        {
+            void_,
+            foo_,
+        }
+
+        @(Xml.Element("element"))
+        struct Element
+        {
+            @(Xml.Attribute("enum"))
+            public Enum enum1;
+
+            @(Xml.Element("enum"))
+            public Enum enum2;
+
+            mixin(GenerateAll);
+        }
+
+        const expected = `<element enum="void"><enum>void</enum></element>`;
+
+        // when
+        auto text = testEncode(Element(Enum.void_, Enum.void_));
+
+        // then
+        text.should.equal(expected);
     }
 
-    // given
-    const value = Value(Nullable!EncodeNodeTestType());
-
-    // when
-    const text = .encode(value);
-
-    // then
-    const expected = `<root><foo/></root>`;
-
-    text.should.equal(expected);
-}
-
-@("fields with characters requiring predefined entities")
-unittest
-{
-    @(Xml.Element("root"))
-    struct Value
+    @(prefix ~ ": custom encoders are used on fields")
+    unittest
     {
-        @(Xml.Attribute("foo"))
-        string foo;
+        // given
+        const value = ValueWithEncoders("bla", "bla");
 
-        @(Xml.Element("bar"))
-        string bar;
+        // when
+        auto text = testEncode(value);
+
+        // then
+        const expected = `<root asFoo="foo"><asBar>bar</asBar></root>`;
+
+        text.should.equal(expected);
     }
 
-    // given
-    enum invalidInAttr = `<&"`;
-    enum invalidInText = `<&]]>`;
-    const value = Value(invalidInAttr, invalidInText);
-
-    // when
-    auto text = .encode(value);
-
-    // then
-    const expected = `<root foo="&lt;&amp;&quot;"><bar>&lt;&amp;]]&gt;</bar></root>`;
-
-    text.should.equal(expected);
-}
-
-@("regression: encodes optional elements with arrays")
-unittest
-{
-    struct Nested
+    @(prefix ~ ": custom encoders are used on types")
+    unittest
     {
-        @(Xml.Element("item"))
-        string[] items;
+        @(Xml.Element("root"))
+        struct Value
+        {
+            @(Xml.Element("foo"))
+            EncodeNodeTestType foo;
+
+            @(Xml.Attribute("bar"))
+            EncodeAttributeTestType bar;
+        }
+
+        // given
+        const value = Value(EncodeNodeTestType(), EncodeAttributeTestType());
+
+        // when
+        auto text = testEncode(value);
+
+        // then
+        const expected = `<root bar="123"><foo>123</foo></root>`;
+
+        text.should.equal(expected);
     }
 
-    @(Xml.Element("root"))
-    struct Root
+    @(prefix ~ ": custom encoder on Nullable element")
+    unittest
     {
-        @(Xml.Element("foo"))
-        Nullable!Nested nested;
+        @(Xml.Element("root"))
+        struct Value
+        {
+            @(Xml.Element("foo"))
+            @(Xml.Encode!encodeNodeTestType)
+            Nullable!EncodeNodeTestType foo;
+        }
+
+        // given
+        const value = Value(Nullable!EncodeNodeTestType());
+
+        // when
+        const text = testEncode(value);
+
+        // then
+        const expected = `<root><foo/></root>`;
+
+        text.should.equal(expected);
     }
 
-    // given
-    const root = Root(Nullable!Nested(Nested(["foo", "bar"])));
+    @(prefix ~ ": fields with characters requiring predefined entities")
+    unittest
+    {
+        @(Xml.Element("root"))
+        struct Value
+        {
+            @(Xml.Attribute("foo"))
+            string foo;
 
-    // when
-    const text = root.encode;
+            @(Xml.Element("bar"))
+            string bar;
+        }
 
-    // then
-    text.should.equal(`<root><foo><item>foo</item><item>bar</item></foo></root>`);
+        // given
+        enum invalidInAttr = `<&"`;
+        enum invalidInText = `<&]]>`;
+        const value = Value(invalidInAttr, invalidInText);
+
+        // when
+        auto text = testEncode(value);
+
+        // then
+        const expected = `<root foo="&lt;&amp;&quot;"><bar>&lt;&amp;]]&gt;</bar></root>`;
+
+        text.should.equal(expected);
+    }
+
+    @(prefix ~ ": regression: encodes optional elements with arrays")
+    unittest
+    {
+        struct Nested
+        {
+            @(Xml.Element("item"))
+            string[] items;
+        }
+
+        @(Xml.Element("root"))
+        struct Root
+        {
+            @(Xml.Element("foo"))
+            Nullable!Nested nested;
+        }
+
+        // given
+        const root = Root(Nullable!Nested(Nested(["foo", "bar"])));
+
+        // when
+        const text = root.testEncode;
+
+        // then
+        text.should.equal(`<root><foo><item>foo</item><item>bar</item></foo></root>`);
+    }
+
+    @(prefix ~ ": struct with optional date attribute")
+    unittest
+    {
+        @(Xml.Element("root"))
+        static struct NullableAttributes
+        {
+            @(Xml.Attribute("date"))
+            @(This.Default)
+            Nullable!Date date;
+
+            mixin(GenerateThis);
+        }
+
+        // given
+        const root = NullableAttributes();
+
+        // when
+        const text = root.testEncode;
+
+        // then
+        text.should.equal(`<root/>`);
+    }
+
+    @(prefix ~ ": struct with optional date element")
+    unittest
+    {
+        @(Xml.Element("root"))
+        static struct NullableAttributes
+        {
+            @(This.Default)
+            @(Xml.Element("date"))
+            Nullable!Date date;
+
+            mixin(GenerateThis);
+        }
+
+        // given
+        const root = NullableAttributes();
+
+        // when
+        const text = root.testEncode;
+
+        // then
+        text.should.equal(`<root/>`);
+    }
+
+    @(prefix ~ ": struct with empty date element")
+    unittest
+    {
+        @(Xml.Element("root"))
+        static struct NullableAttributes
+        {
+            @(Xml.Element("date"))
+            Nullable!Date date;
+
+            mixin(GenerateThis);
+        }
+
+        // given
+        const root = NullableAttributes();
+
+        // when
+        const text = root.testEncode;
+
+        // then
+        text.should.equal(`<root><date/></root>`);
+    }
+
+    @(prefix ~ ": SumType")
+    unittest
+    {
+        with (SumTypeFixture)
+        {
+            alias Either = SumType!(A, B);
+
+            @(Xml.Element("root"))
+            static struct Struct
+            {
+                Either field;
+
+                mixin(GenerateThis);
+            }
+
+            // given/when/then
+            Struct(Either(A(5))).testEncode.should.equal(`<root><A a="5"/></root>`);
+
+            Struct(Either(B(3))).testEncode.should.equal(`<root><B b="3"/></root>`);
+        }
+    }
+
+    @(prefix ~ ": SumType with arrays")
+    unittest
+    {
+        with (SumTypeFixture)
+        {
+            alias Either = SumType!(A[], B[]);
+
+            @(Xml.Element("root"))
+            static struct Struct
+            {
+                Either field;
+
+                mixin(GenerateThis);
+            }
+
+            // given/when/then
+            Struct(Either([A(5), A(6)])).testEncode.should.equal(`<root><A a="5"/><A a="6"/></root>`);
+        }
+    }
+
+    @(prefix ~ ": attribute/element without specified name")
+    unittest
+    {
+        struct Value
+        {
+            @(Xml.Attribute)
+            private int value_;
+
+            mixin(GenerateThis);
+        }
+
+        @(Xml.Element)
+        struct Container
+        {
+            @(Xml.Element)
+            immutable(Value)[] values;
+
+            mixin(GenerateThis);
+        }
+
+        // when
+        const text = Container([Value(1), Value(2), Value(3)]).testEncode;
+
+        // then
+        text.should.equal(`<Container><Value value="1"/><Value value="2"/><Value value="3"/></Container>`);
+    }
+
+    @(prefix ~ ": SysTime as text")
+    unittest
+    {
+        @(Xml.Element)
+        struct Value
+        {
+            @(Xml.Text)
+            SysTime time;
+
+            mixin(GenerateThis);
+        }
+
+        // when
+        const text = Value(SysTime.fromISOExtString("2003-02-01T12:00:00")).testEncode;
+
+        // then
+        text.should.equal(`<Value>2003-02-01T12:00:00</Value>`);
+    }
 }
 
 @(Xml.Element("root"))
@@ -326,116 +514,6 @@ package struct EncodeAttributeTestType
 {
 }
 
-@("struct with optional date attribute")
-unittest
-{
-    @(Xml.Element("root"))
-    static struct NullableAttributes
-    {
-        @(Xml.Attribute("date"))
-        @(This.Default)
-        Nullable!Date date;
-
-        mixin(GenerateThis);
-    }
-
-    // given
-    const root = NullableAttributes();
-
-    // when
-    const text = root.encode;
-
-    // then
-    text.should.equal(`<root/>`);
-}
-
-@("struct with optional date element")
-unittest
-{
-    @(Xml.Element("root"))
-    static struct NullableAttributes
-    {
-        @(This.Default)
-        @(Xml.Element("date"))
-        Nullable!Date date;
-
-        mixin(GenerateThis);
-    }
-
-    // given
-    const root = NullableAttributes();
-
-    // when
-    const text = root.encode;
-
-    // then
-    text.should.equal(`<root/>`);
-}
-
-@("struct with empty date element")
-unittest
-{
-    @(Xml.Element("root"))
-    static struct NullableAttributes
-    {
-        @(Xml.Element("date"))
-        Nullable!Date date;
-
-        mixin(GenerateThis);
-    }
-
-    // given
-    const root = NullableAttributes();
-
-    // when
-    const text = root.encode;
-
-    // then
-    text.should.equal(`<root><date/></root>`);
-}
-
-@("SumType")
-unittest
-{
-    with (SumTypeFixture)
-    {
-        alias Either = SumType!(A, B);
-
-        @(Xml.Element("root"))
-        static struct Struct
-        {
-            Either field;
-
-            mixin(GenerateThis);
-        }
-
-        // given/when/then
-        Struct(Either(A(5))).encode.should.equal(`<root><A a="5"/></root>`);
-
-        Struct(Either(B(3))).encode.should.equal(`<root><B b="3"/></root>`);
-    }
-}
-
-@("SumType with arrays")
-unittest
-{
-    with (SumTypeFixture)
-    {
-        alias Either = SumType!(A[], B[]);
-
-        @(Xml.Element("root"))
-        static struct Struct
-        {
-            Either field;
-
-            mixin(GenerateThis);
-        }
-
-        // given/when/then
-        Struct(Either([A(5), A(6)])).encode.should.equal(`<root><A a="5"/><A a="6"/></root>`);
-    }
-}
-
 private struct SumTypeFixture
 {
     @(Xml.Element("A"))
@@ -451,50 +529,4 @@ private struct SumTypeFixture
         @(Xml.Attribute("b"))
         int b;
     }
-}
-
-@("attribute/element without specified name")
-unittest
-{
-    struct Value
-    {
-        @(Xml.Attribute)
-        private int value_;
-
-        mixin(GenerateThis);
-    }
-
-    @(Xml.Element)
-    struct Container
-    {
-        @(Xml.Element)
-        immutable(Value)[] values;
-
-        mixin(GenerateThis);
-    }
-
-    // when
-    const text = Container([Value(1), Value(2), Value(3)]).encode;
-
-    // then
-    text.should.equal(`<Container><Value value="1"/><Value value="2"/><Value value="3"/></Container>`);
-}
-
-@("SysTime as text")
-unittest
-{
-    @(Xml.Element)
-    struct Value
-    {
-        @(Xml.Text)
-        SysTime time;
-
-        mixin(GenerateThis);
-    }
-
-    // when
-    const text = Value(SysTime.fromISOExtString("2003-02-01T12:00:00")).encode;
-
-    // then
-    text.should.equal(`<Value>2003-02-01T12:00:00</Value>`);
 }
