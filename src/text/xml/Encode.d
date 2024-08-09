@@ -56,9 +56,9 @@ do
     mixin enforceTypeHasElementTag!(T, "type passed to text.xml.encode");
 
     alias attributes = AliasSeq!(__traits(getAttributes, T));
-    auto xmlWriter = .xmlWriter(writer);
+    auto xmlWriter = .xmlWriter(&writer);
 
-    encodeNode!(T, Writer, attributes)(xmlWriter, value);
+    encodeNode!(T, Writer*, attributes)(xmlWriter, value);
 }
 
 private void encodeNode(T, Writer, attributes...)(ref XMLWriter!Writer writer, const T value)

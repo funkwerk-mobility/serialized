@@ -484,7 +484,7 @@ private struct ValueWithEncoders
         return "foo";
     }
 
-    static void asBar(ref XMLWriter!(Appender!string) writer, string field)
+    static void asBar(Writer)(ref XMLWriter!Writer writer, string field)
     {
         field.should.equal("bla");
 
@@ -494,7 +494,7 @@ private struct ValueWithEncoders
     mixin(GenerateThis);
 }
 
-package void encodeNodeTestType(ref XMLWriter!(Appender!string) writer, EncodeNodeTestType)
+package void encodeNodeTestType(Writer)(ref XMLWriter!Writer writer, EncodeNodeTestType)
 {
     writer.writeText("123", Newline.no);
 }
