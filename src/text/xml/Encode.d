@@ -92,9 +92,8 @@ private void encodeNode(T, Writer, attributes...)(ref XMLWriter!Writer writer, c
 
     static foreach (member; FilterMembers!(T, value, false))
     {{
-        auto memberValue = __traits(getMember, value, member);
         alias memberAttrs = AliasSeq!(__traits(getAttributes, __traits(getMember, value, member)));
-        alias PlainMemberT = typeof(cast() memberValue);
+        alias PlainMemberT = typeof(cast() __traits(getMember, value, member));
         enum hasXmlTag = !Xml.elementName!memberAttrs(typeName!PlainMemberT).isNull
             || udaIndex!(Xml.Text, memberAttrs) != -1;
         enum isSumType = is(PlainMemberT : SumType!U, U...);
@@ -113,7 +112,7 @@ private void encodeNode(T, Writer, attributes...)(ref XMLWriter!Writer writer, c
             static if (is(PlainMemberT : Nullable!Arg, Arg))
             {
                 // if @(This.Default) and null, tag is omitted.
-                if (!(useDefault && memberValue.isNull))
+                if (!(useDefault && __traits(getMember, value, member).isNull))
                 {
                     tagIsEmpty = false;
                 }
@@ -131,9 +130,8 @@ private void encodeNode(T, Writer, attributes...)(ref XMLWriter!Writer writer, c
     {
         static foreach (member; FilterMembers!(T, value, false))
         {{
-            auto memberValue = __traits(getMember, value, member);
             alias memberAttrs = AliasSeq!(__traits(getAttributes, __traits(getMember, value, member)));
-            alias PlainMemberT = typeof(cast() memberValue);
+            alias PlainMemberT = typeof(cast() __traits(getMember, value, member));
             enum name = Xml.elementName!memberAttrs(typeName!PlainMemberT);
             static if (__traits(hasMember, T, "ConstructorInfo")
                 && __traits(hasMember, T.ConstructorInfo.FieldInfo, member))
@@ -148,15 +146,20 @@ private void encodeNode(T, Writer, attributes...)(ref XMLWriter!Writer writer, c
             static if (!name.isNull)
             {
                 enum string nameGet__ = name.get; // work around for weird compiler bug
+                auto memberValue = __traits(getMember, value, member);
 
                 encodeNodeImpl!(nameGet__, PlainMemberT, Writer, useDefault, memberAttrs)(writer, memberValue);
             }
             else static if (udaIndex!(Xml.Text, memberAttrs) != -1)
             {
+                auto memberValue = __traits(getMember, value, member);
+
                 writer.writeText(encodeLeafImpl(memberValue).encodeText, Newline.no);
             }
-            else static if (is(typeof(cast() memberValue) : SumType!U, U...))
+            else static if (is(PlainMemberT : SumType!U, U...))
             {
+                auto memberValue = __traits(getMember, value, member);
+
                 encodeSumType(writer, memberValue);
             }
         }}
