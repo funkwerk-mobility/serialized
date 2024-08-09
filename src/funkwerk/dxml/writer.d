@@ -192,9 +192,9 @@ public:
     {
         _validateStartTag!"openStartTag"(name);
         if(newline == Newline.yes)
-            put(_output, _getIndent(tagDepth));
+            put(_output, _getIndent(_tagDepth));
         _startTagOpen = true;
-        _incLevel(name);
+        _tagDepth++;
         put(_output, '<');
         put(_output, name);
     }
@@ -209,7 +209,6 @@ public:
         // referenced inside an assertion.
         version(assert)
             assert(!_writtenRootEnd, funcName ~ " cannot be called after the root element's end tag has been written.");
-        checkName(name);
     }
 
     ///
@@ -247,7 +246,7 @@ public:
                "<root>\n" ~
                `    <foo answer="42"/>`);
 
-        writer.writeEndTag();
+        writer.writeEndTag("root");
         assert(writer.output.data ==
                "<root>\n" ~
                `    <foo answer="42"/>` ~ "\n" ~
@@ -298,7 +297,6 @@ public:
     {
         assert(_startTagOpen, "writeAttr cannot be called except when a start tag is open");
 
-        checkName(name);
         static if(quote == '"')
             checkText!(CheckText.attValueQuot)(value.save);
         else
@@ -310,7 +308,7 @@ public:
         _attributes ~= name;
 
         if(newline == Newline.yes)
-            put(_output, _getIndent(tagDepth));
+            put(_output, _getIndent(_tagDepth));
         else
             put(_output, ' ');
         put(_output, name);
@@ -410,8 +408,8 @@ public:
                `        base="13">` ~ "\n" ~
                `        <tag foo="&amp;"/>`);
 
-        writer.writeEndTag();
-        writer.writeEndTag();
+        writer.writeEndTag("foobar");
+        writer.writeEndTag("root");
         assert(writer.output.data ==
                `<root a="one" b="two">` ~ "\n" ~
                "    <foobar answer='42'\n" ~
@@ -509,7 +507,7 @@ public:
         if(emptyTag == EmptyTag.yes)
         {
             put(_output, "/>");
-            _decLevel();
+            _tagDepth--;
         }
         else
             put(_output, '>');
@@ -541,7 +539,7 @@ public:
                "<root>\n" ~
                "    <foo/>");
 
-        writer.writeEndTag();
+        writer.writeEndTag("root");
         assert(writer.output.data ==
                "<root>\n" ~
                "    <foo/>\n" ~
@@ -604,14 +602,14 @@ public:
     void _writeStartTag(string name, EmptyTag emptyTag, Newline newline)
     {
         if(newline == Newline.yes)
-            put(_output, _getIndent(tagDepth));
+            put(_output, _getIndent(_tagDepth));
         put(_output, '<');
         put(_output, name);
         if(emptyTag == EmptyTag.yes)
             put(_output, "/>");
         else
         {
-            _incLevel(name);
+            _tagDepth++;
             put(_output, '>');
         }
     }
@@ -658,9 +656,9 @@ public:
                "        <bar/><baz/>\n" ~
                "        <bloop>");
 
-        writer.writeEndTag();
-        writer.writeEndTag();
-        writer.writeEndTag();
+        writer.writeEndTag("bloop");
+        writer.writeEndTag("foo");
+        writer.writeEndTag("root");
         assert(writer.output.data ==
                "<root>\n" ~
                "    <foo>\n" ~
@@ -706,32 +704,15 @@ public:
     void writeEndTag(string name, Newline newline = Newline.yes)
     {
         assert(!_startTagOpen, "writeEndTag cannot be called when a start tag is open");
-
-        if(name != _tagStack.back)
-        {
-            import std.format : format;
-            auto msg = format!"End tag name does not match start tag name: <%s> vs </%s>"(_tagStack.back, name);
-            throw new XMLWritingException(msg);
-        }
-
-        writeEndTag(newline);
-    }
-
-    /// Ditto
-    void writeEndTag(Newline newline = Newline.yes)
-    {
-        assert(!_startTagOpen, "writeEndTag cannot be called when a start tag is open");
-
-        immutable name = _tagStack.back;
-        _decLevel();
+        _tagDepth--;
         if(newline == Newline.yes)
-            put(_output, _getIndent(tagDepth));
+            put(_output, _getIndent(_tagDepth));
         put(_output, "</");
         put(_output, name);
         put(_output, ">");
 
         version(assert)
-            _writtenRootEnd = tagDepth == 0;
+            _writtenRootEnd = _tagDepth == 0;
     }
 
     ///
@@ -777,7 +758,7 @@ public:
 
         // No name is required, but if it is not provided, then the code cannot
         // validate that it's writing the end tag that it thinks it's writing.
-        writer.writeEndTag();
+        writer.writeEndTag("root");
         assert(writer.output.data ==
                "<root>\n" ~
                "    <foo></foo>\n" ~
@@ -794,7 +775,7 @@ public:
         writer.writeStartTag("root");
         writer.writeStartTag("tag");
         writer.writeEndTag("tag");
-        () @safe nothrow { writer.writeEndTag(); } ();
+        () @safe nothrow { writer.writeEndTag("root"); } ();
     }
 
 
@@ -856,7 +837,7 @@ public:
         // tag has been written, and because it's writing the start tag, it can
         // guarantee that the root tag has been written before the text.
         static if(funcName != "writeTaggedText")
-            assert(tagDepth != 0, funcName ~ " cannot be called before the root start tag has been written");
+            assert(_tagDepth != 0, funcName ~ " cannot be called before the root start tag has been written");
         checkText!(CheckText.text)(text);
     }
 
@@ -865,9 +846,9 @@ public:
     private void _writeText(R)(R text, Newline newline, InsertIndent insertIndent)
     {
         if(newline == Newline.yes)
-            put(_output, insertIndent == InsertIndent.yes ? _getIndent(tagDepth) : "\n");
+            put(_output, insertIndent == InsertIndent.yes ? _getIndent(_tagDepth) : "\n");
         if(insertIndent == InsertIndent.yes)
-            _insertIndent(text, tagDepth);
+            _insertIndent(text, _tagDepth);
         else
             put(_output, text);
     }
@@ -1073,10 +1054,10 @@ public:
         assert(!_startTagOpen, "writeComment cannot be called when a start tag is open");
         checkText!(CheckText.comment)(text.save);
         if(newline == Newline.yes)
-            put(_output, _getIndent(tagDepth));
+            put(_output, _getIndent(_tagDepth));
         put(_output, "<!--");
         if(insertIndent == InsertIndent.yes)
-            _insertIndent(text, tagDepth + 1);
+            _insertIndent(text, _tagDepth + 1);
         else
             put(_output, text);
         put(_output, "-->");
@@ -1211,10 +1192,10 @@ public:
         assert(!_startTagOpen, "writeCDATA cannot be called when a start tag is open");
         checkText!(CheckText.cdata)(text.save);
         if(newline == Newline.yes)
-            put(_output, _getIndent(tagDepth));
+            put(_output, _getIndent(_tagDepth));
         put(_output, "<![CDATA[");
         if(insertIndent == InsertIndent.yes)
-            _insertIndent(text, tagDepth + 1);
+            _insertIndent(text, _tagDepth + 1);
         else
             put(_output, text);
         put(_output, "]]>");
@@ -1337,9 +1318,8 @@ public:
         if(isForwardRange!R && isSomeChar!(ElementType!R))
     {
         assert(!_startTagOpen, "writePI cannot be called when a start tag is open");
-        checkPIName(name.save);
         if(newline == Newline.yes)
-            put(_output, _getIndent(tagDepth));
+            put(_output, _getIndent(_tagDepth));
         put(_output, "<?");
         put(_output, name);
         put(_output, "?>");
@@ -1351,15 +1331,14 @@ public:
            isForwardRange!R2 && isSomeChar!(ElementType!R2))
     {
         assert(!_startTagOpen, "writePI cannot be called when a start tag is open");
-        checkPIName(name.save);
         checkText!(CheckText.pi)(text.save);
         if(newline == Newline.yes)
-            put(_output, _getIndent(tagDepth));
+            put(_output, _getIndent(_tagDepth));
         put(_output, "<?");
         put(_output, name);
         put(_output, ' ');
         if(insertIndent == InsertIndent.yes)
-            _insertIndent(text, tagDepth + 1);
+            _insertIndent(text, _tagDepth + 1);
         else
             put(_output, text);
         put(_output, "?>");
@@ -1486,29 +1465,20 @@ public:
         writer.writePI("name", "text");
     }
 
-
-    /++
-        The current depth of the tag stack.
-      +/
-    @property int tagDepth() @safe const pure nothrow @nogc
-    {
-        return cast(int)_tagStack.length;
-    }
-
     ///
     static if(compileInTests) unittest
     {
         import std.array : appender;
 
         auto writer = xmlWriter(appender!string());
-        assert(writer.tagDepth == 0);
+        assert(writer._tagDepth == 0);
 
         writer.writeStartTag("root", Newline.no);
-        assert(writer.tagDepth == 1);
+        assert(writer._tagDepth == 1);
         assert(writer.output.data == "<root>");
 
         writer.writeStartTag("a");
-        assert(writer.tagDepth == 2);
+        assert(writer._tagDepth == 2);
         assert(writer.output.data ==
                "<root>\n" ~
                "    <a>");
@@ -1517,21 +1487,21 @@ public:
         // any calls to writeIndent or writeAttr while a start tag is open
         // will use the same tag depth as the children of the start tag.
         writer.openStartTag("b");
-        assert(writer.tagDepth == 3);
+        assert(writer._tagDepth == 3);
         assert(writer.output.data ==
                "<root>\n" ~
                "    <a>\n" ~
                "        <b");
 
         writer.closeStartTag();
-        assert(writer.tagDepth == 3);
+        assert(writer._tagDepth == 3);
         assert(writer.output.data ==
                "<root>\n" ~
                "    <a>\n" ~
                "        <b>");
 
         writer.writeEndTag("b");
-        assert(writer.tagDepth == 2);
+        assert(writer._tagDepth == 2);
         assert(writer.output.data ==
                "<root>\n" ~
                "    <a>\n" ~
@@ -1540,7 +1510,7 @@ public:
 
         // Only start tags and end tags affect the tag depth.
         writer.writeComment("comment");
-        assert(writer.tagDepth == 2);
+        assert(writer._tagDepth == 2);
         assert(writer.output.data ==
                "<root>\n" ~
                "    <a>\n" ~
@@ -1549,7 +1519,7 @@ public:
                "        <!--comment-->");
 
         writer.writeEndTag("a");
-        assert(writer.tagDepth == 1);
+        assert(writer._tagDepth == 1);
         assert(writer.output.data ==
                "<root>\n" ~
                "    <a>\n" ~
@@ -1559,7 +1529,7 @@ public:
                "    </a>");
 
         writer.writeEndTag("root");
-        assert(writer.tagDepth == 0);
+        assert(writer._tagDepth == 0);
         assert(writer.output.data ==
                "<root>\n" ~
                "    <a>\n" ~
@@ -1613,7 +1583,7 @@ public:
       +/
     void writeIndent()
     {
-        put(_output, _getIndent(tagDepth));
+        put(_output, _getIndent(_tagDepth));
     }
 
     ///
@@ -1660,8 +1630,8 @@ public:
                "        some text\n" ~
                "        ");
 
-        writer.writeEndTag();
-        writer.writeEndTag();
+        writer.writeEndTag("foo");
+        writer.writeEndTag("root");
         assert(writer.output.data ==
                "<root>\n" ~
                "    \n" ~
@@ -1685,7 +1655,7 @@ public:
             assert(writer.output.data == "\n<root>");
             writer.writeIndent();
             assert(writer.output.data == "\n<root>\n\t");
-            writer.writeEndTag(Newline.no);
+            writer.writeEndTag("root", Newline.no);
             assert(writer.output.data == "\n<root>\n\t</root>");
             writer.writeIndent();
             assert(writer.output.data == "\n<root>\n\t</root>\n");
@@ -1698,7 +1668,7 @@ public:
             assert(writer.output.data == "\n<root>");
             writer.writeIndent();
             assert(writer.output.data == "\n<root>\n");
-            writer.writeEndTag(Newline.no);
+            writer.writeEndTag("root", Newline.no);
             assert(writer.output.data == "\n<root>\n</root>");
             writer.writeIndent();
             assert(writer.output.data == "\n<root>\n</root>\n");
@@ -1772,7 +1742,6 @@ public:
                "XMLWriter's base indent can only contain ' ' and '\t'");
 
         _output = output;
-        _tagStack.reserve(10);
         _attributes.reserve(10);
 
         static makeIndent(string baseIndent) pure @safe nothrow
@@ -1806,19 +1775,6 @@ public:
 
 
 private:
-
-    void _incLevel(string tagName) @safe pure nothrow
-    {
-        _tagStack ~= tagName;
-    }
-
-
-    void _decLevel() @safe /+pure+/ nothrow
-    {
-        --_tagStack.length;
-        () @trusted { _tagStack.assumeSafeAppend(); } ();
-    }
-
 
     string _getIndent(int depth) @safe pure nothrow
     {
@@ -1888,7 +1844,7 @@ private:
 
 
     OR _output;
-    string[] _tagStack;
+    int _tagDepth;
     string[] _attributes;
     string _baseIndent;
     string _totalIndent;
@@ -2088,7 +2044,7 @@ void writeTaggedText(XW, R)(ref XW writer, string name, R text, Newline newline 
 
     writer._writeStartTag(name, EmptyTag.no, newline);
     writer._writeText(text, Newline.no, insertIndent);
-    writer.writeEndTag(Newline.no);
+    writer.writeEndTag(name, Newline.no);
 }
 
 /// Ditto
@@ -2173,7 +2129,6 @@ unittest
             assertThrown!XMLWritingException(writer.writeTaggedText("foo", func("&bar")));
             assertThrown!XMLWritingException(writer.writeTaggedText("foo", func("--<--")));
             assertThrown!XMLWritingException(writer.writeTaggedText("foo", func("--&--")));
-            assertThrown!XMLWritingException(writer.writeTaggedText(".f", func("bar")));
             writer.writeTaggedText("f.", func("--"));
             writer.writeTaggedText("a", func("&foo; &bar; &baz;"), Newline.no);
             writer.writeTaggedText("a", func("&foo; \n &bar;\n&baz;"));
@@ -2199,8 +2154,6 @@ unittest
     writer.writeTaggedText("root", "text");
 }
 
-
-private:
 
 void checkName(R)(R range)
 {
@@ -2242,6 +2195,8 @@ void checkName(R)(R range)
             assertThrown!XMLWritingException(checkName(func(str)));
     }
 }
+
+private:
 
 void checkPIName(R)(R range)
 {

@@ -1,7 +1,7 @@
 module text.xml.Writer;
 
 import dxml.util;
-import dxml.writer;
+import funkwerk.dxml.writer;
 import std.array;
 import std.range;
 import std.typecons;
@@ -39,6 +39,7 @@ struct CustomXmlWriter(Flag!"pretty" pretty, Sink)
 
     public void openStartTag(string name)
     {
+        checkName(name);
         this.writer.openStartTag(name, newline);
     }
 
@@ -95,6 +96,7 @@ struct CustomXmlWriter(Flag!"pretty" pretty, Sink)
         switch (document.type) with (XmlNode.Type)
         {
             case element:
+                checkName(document.tag);
                 openStartTag(document.tag);
                 finishTag(document);
                 break;
@@ -117,6 +119,7 @@ struct CustomXmlWriter(Flag!"pretty" pretty, Sink)
         {
             if (!document.tag.empty)
             {
+                checkName(document.tag);
                 this.writer.openStartTag(document.tag, Newline.no);
                 finishTag(document);
                 static if (pretty)

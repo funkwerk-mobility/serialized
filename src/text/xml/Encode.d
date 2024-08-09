@@ -2,7 +2,7 @@ module text.xml.Encode;
 
 import boilerplate.util;
 import dxml.util;
-import dxml.writer;
+import funkwerk.dxml.writer;
 import serialized.meta.attributesOrNothing;
 import std.array;
 import std.meta;
@@ -65,6 +65,7 @@ private void encodeNode(T, Writer, attributes...)(ref XMLWriter!Writer writer, c
 {
     enum elementName = Xml.elementName!attributes(typeName!T).get;
 
+    static assert({ checkName(elementName);  return true; }());
     writer.openStartTag(elementName, Newline.no);
 
     // encode all the attribute members
@@ -164,7 +165,7 @@ private void encodeNode(T, Writer, attributes...)(ref XMLWriter!Writer writer, c
             }
         }}
 
-        writer.writeEndTag(Newline.no);
+        writer.writeEndTag(elementName, Newline.no);
     }
 }
 
@@ -187,6 +188,7 @@ private void encodeSumType(T, Writer)(ref XMLWriter!Writer writer, const T value
         alias attributes = AliasSeq!(__traits(getAttributes, BaseType));
         enum name = Xml.elementName!attributes(typeName!BaseType).get;
 
+        static assert({ checkName(name);  return true; }());
         encodeNodeImpl!(name, T, Writer, false, attributes)(writer, value);
     }, T.Types));
 }
@@ -264,6 +266,7 @@ private void encodeNodeImpl(string name, T, Writer, bool useDefault, attributes.
         else if (!useDefault)
         {
             // <foo />
+            static assert({ checkName(name);  return true; }());
             writer.openStartTag(name, Newline.no);
             writer.closeStartTag(EmptyTag.yes);
         }
@@ -272,6 +275,7 @@ private void encodeNodeImpl(string name, T, Writer, bool useDefault, attributes.
     {
         alias customEncoder = attributes[udaIndex!(Xml.Encode, attributes)].EncodeFunction;
 
+        static assert({ checkName(name);  return true; }());
         writer.openStartTag(name, Newline.no);
         writer.closeStartTag;
 
@@ -282,6 +286,7 @@ private void encodeNodeImpl(string name, T, Writer, bool useDefault, attributes.
     {
         alias customEncoder = typeAttributes[udaIndex!(Xml.Encode, typeAttributes)].EncodeFunction;
 
+        static assert({ checkName(name);  return true; }());
         writer.openStartTag(name, Newline.no);
         writer.closeStartTag;
 
@@ -290,6 +295,7 @@ private void encodeNodeImpl(string name, T, Writer, bool useDefault, attributes.
     }
     else static if (isLeafType!(PlainT, attributes))
     {
+        static assert({ checkName(name);  return true; }());
         writer.openStartTag(name, Newline.no);
         writer.closeStartTag;
 
