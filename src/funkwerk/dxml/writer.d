@@ -302,11 +302,6 @@ public:
         else
             checkText!(CheckText.attValueApos)(value.save);
 
-        import std.algorithm.searching : canFind;
-        if(_attributes.canFind(name))
-            throw new XMLWritingException("Duplicate attribute name: " ~ name);
-        _attributes ~= name;
-
         if(newline == Newline.yes)
             put(_output, _getIndent(_tagDepth));
         else
@@ -445,18 +440,15 @@ public:
             writer.writeAttr("e", func("]]>"));
             writer.writeAttr("f", func("'''"));
             writer.writeAttr!'\''("g", func(`"""`));
-            assert(writer._attributes.length == 7);
             assert(writer.output.data == `<root a="foo" b="bar" c="bar"` ~ "\n" ~
                                          `    d="foo&bar;baz" e="]]>" f="'''" g='"""'`);
             writer.closeStartTag();
-            assert(writer._attributes.empty);
 
             writer.openStartTag("foo");
             writer.writeAttr("a", func("foo"));
             writer.writeAttr("b", func("bar"));
             writer.writeAttr("c", func("bar"));
             writer.closeStartTag(EmptyTag.yes);
-            assert(writer._attributes.empty);
             assert(writer.output.data == `<root a="foo" b="bar" c="bar"` ~ "\n" ~
                                          `    d="foo&bar;baz" e="]]>" f="'''" g='"""'>` ~ "\n" ~
                                          `    <foo a="foo" b="bar" c="bar"/>`);
@@ -467,7 +459,6 @@ public:
             writer.writeAttr("c", func("bar"));
             assertThrown!XMLWritingException(writer.writeAttr("c", func("baz")));
             writer.closeStartTag();
-            assert(writer._attributes.empty);
             assert(writer.output.data == `<root a="foo" b="bar" c="bar"` ~ "\n" ~
                                          `    d="foo&bar;baz" e="]]>" f="'''" g='"""'>` ~ "\n" ~
                                          `    <foo a="foo" b="bar" c="bar"/>` ~ "\n" ~
@@ -512,8 +503,6 @@ public:
         else
             put(_output, '>');
         _startTagOpen = false;
-        _attributes.length = 0;
-        () @trusted { _attributes.assumeSafeAppend(); } ();
     }
 
     ///
@@ -1742,7 +1731,6 @@ public:
                "XMLWriter's base indent can only contain ' ' and '\t'");
 
         _output = output;
-        _attributes.reserve(10);
 
         static makeIndent(string baseIndent) pure @safe nothrow
         {
@@ -1845,7 +1833,6 @@ private:
 
     OR _output;
     int _tagDepth;
-    string[] _attributes;
     string _baseIndent;
     string _totalIndent;
     bool _startTagOpen;
