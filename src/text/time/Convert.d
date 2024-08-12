@@ -102,8 +102,10 @@ class Convert
             throw new DateTimeException("time undefined");
         }
 
-        sysTime.fracSecs = Duration.zero;
-        sysTime.toISOExtString(sink);
+        MiniBuffer buffer;
+
+        buffer.putSysTime(sysTime);
+        sink(buffer[]);
     }
 
     unittest
@@ -229,6 +231,82 @@ private string toStringSinkProxy(T)(T t)
     Convert.toString(t, (fragment) { str ~= fragment; });
 
     return str;
+}
+
+private struct MiniBuffer
+{
+    short length;
+    char[30] data;
+
+    /**
+     * Emulate SysTime.toISOExtString (without fracSecs), but faster.
+     * Yes I benchmarked it and yes it matters.
+     * `toISOExtString` is *that* slow. Blame `format`.
+     */
+    public void putSysTime(const SysTime value)
+    {
+        putZeroFilled(value.year, 4);
+        put('-');
+        putZeroFilled(value.month, 2);
+        put('-');
+        putZeroFilled(value.day, 2);
+        put('T');
+        putZeroFilled(value.hour, 2);
+        put(':');
+        putZeroFilled(value.minute, 2);
+        put(':');
+        putZeroFilled(value.second, 2);
+        if (value.timezone is LocalTime())
+        {
+            return;
+        }
+        else if (value.timezone is UTC())
+        {
+            put('Z');
+            return;
+        }
+        else if (value.utcOffset >= Duration.zero)
+        {
+            const split = value.utcOffset.split!("hours", "minutes");
+
+            put('+');
+            putZeroFilled(cast(int) split.hours, 2);
+            put(':');
+            putZeroFilled(cast(int) split.minutes, 2);
+        }
+        else
+        {
+            const split = (-value.utcOffset).split!("hours", "minutes");
+
+            put('-');
+            putZeroFilled(cast(int) split.hours, 2);
+            put(':');
+            putZeroFilled(cast(int) split.minutes, 2);
+        }
+    }
+
+    public char[] opSlice() return
+    {
+        return this.data[0 .. length];
+    }
+
+    private void put(const char ch)
+    {
+        assert(this.length + 1 <= this.data.length);
+        this.data[this.length++] = ch;
+    }
+
+    private void putZeroFilled(int value, const int width)
+    {
+        assert(this.length + width <= this.data.length);
+        // write right to left, fill with zeroes
+        foreach (i; 0 .. width)
+        {
+            this.data[this.length + width - i - 1] = '0' + (value % 10);
+            value /= 10;
+        }
+        this.length += width;
+    }
 }
 
 /**
