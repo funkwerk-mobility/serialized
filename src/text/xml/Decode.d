@@ -288,7 +288,7 @@ if (udaIndex!(Xml.Text, attributes) != -1)
 {
     void text(string value)
     {
-        mixin(builderPath) = value.dup;
+        mixin(builderPath) = value.idup;
     }
 }
 
@@ -653,7 +653,7 @@ private T decodeNodeLeaf(T, attributes...)(ref XmlRange range)
 
         static if (is(T == string))
         {
-            return text.dup;
+            return text.idup;
         }
         else static if (is(T == enum))
         {
