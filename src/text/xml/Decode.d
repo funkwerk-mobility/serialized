@@ -1,40 +1,48 @@
 module text.xml.Decode;
 
-import boilerplate.util : udaIndex;
+import boilerplate.util : optionallyRemoveTrailingUnderline, udaIndex;
+static import dxml.parser;
 static import dxml.util;
 import serialized.meta.attributesOrNothing;
 import serialized.meta.never;
 import serialized.meta.SafeUnqual;
+import std.algorithm;
+import std.array;
+import std.exception : enforce;
 import std.format : format;
+import std.meta;
+import std.range;
+import std.string : stripLeft;
 import std.sumtype;
+import std.traits;
+import std.typecons;
 import text.xml.Tree;
 import text.xml.Validation : enforceName, normalize, require, requireChild;
+import text.xml.XmlException;
 public import text.xml.Xml;
+
+public alias XmlRange = dxml.parser.EntityRange!(dxml.parser.simpleXML, string);
 
 /**
  * Throws: XmlException if the message is not well-formed or doesn't match the type
  */
 public T decode(T, alias customDecode = never)(string message)
 {
-    import text.xml.Parser : parse;
-
     static assert(__traits(isSame, customDecode, never), "XML does not yet support a decode function");
 
-    XmlNode rootNode = parse(message);
+    auto range = dxml.parser.parseXML!(dxml.parser.simpleXML)(message);
 
-    return decodeXml!T(rootNode);
+    return decodeXml!T(range);
 }
 
 /**
  * Throws: XmlException if the XML element doesn't match the type
  */
-public T decodeXml(T)(XmlNode node)
+public T decodeXml(T)(XmlRange range)
 {
-    import std.traits : fullyQualifiedName;
-
     static if (is(T : SumType!Types, Types...))
     {
-        return decodeToplevelSumtype!Types(node);
+        return decodeToplevelSumtype!Types(range);
     }
     else
     {
@@ -45,9 +53,9 @@ public T decodeXml(T)(XmlNode node)
             fullyQualifiedName!T ~
             ": type passed to text.xml.decode must have an Xml.Element attribute indicating its element name.");
 
-        node.enforceName(name.get);
+        range.enforceName(name.get);
 
-        return decodeUnchecked!T(node);
+        return decodeUnchecked!T(range);
     }
 }
 
@@ -55,19 +63,13 @@ public T decodeXml(T)(XmlNode node)
  * Throws: XmlException if the XML element doesn't match the type
  * Returns: T, or the type returned from a decoder function defined on T.
  */
-public auto decodeUnchecked(T, attributes...)(XmlNode node)
+public T decodeUnchecked(T, attributes...)(ref XmlRange range)
 {
-    import boilerplate.util : formatNamed, optionallyRemoveTrailingUnderline, udaIndex;
-    import std.algorithm : map;
-    import std.meta : AliasSeq, anySatisfy, ApplyLeft;
-    import std.range : array, ElementType;
     import std.string : empty, strip;
-    import std.traits : fullyQualifiedName, isIterable, Unqual;
-    import std.typecons : Nullable, Tuple;
 
     static if (isNodeLeafType!(T, attributes))
     {
-        return decodeNodeLeaf!(T, attributes)(node);
+        return decodeNodeLeaf!(T, attributes)(range);
     }
     else
     {
@@ -75,243 +77,416 @@ public auto decodeUnchecked(T, attributes...)(XmlNode node)
             __traits(hasMember, T, "ConstructorInfo"),
             fullyQualifiedName!T ~ " does not have a boilerplate constructor!");
 
-        auto builder = T.Builder();
+        const currentTag = range.front.name;
+        auto xmlBuilder = XmlBuilder!T();
 
-        alias Info = Tuple!(string, "builderField", string, "constructorField");
-
-        static foreach (string constructorField; T.ConstructorInfo.fields)
-        {{
-            enum builderField = optionallyRemoveTrailingUnderline!constructorField;
-
-            alias Type = Unqual!(__traits(getMember, T.ConstructorInfo.FieldInfo, constructorField).Type);
-            alias attributes = AliasSeq!(
-                __traits(getMember, T.ConstructorInfo.FieldInfo, constructorField).attributes);
-
-            static if (is(Type : Nullable!Arg, Arg))
+        foreach (entry; range.front.attributes)
+        {
+        switchLabel:
+            switch (entry.name)
             {
-                alias DecodeType = Arg;
-                enum isNullable = true;
+                static foreach (attributeMethod; definedAttributes!(XmlBuilder!T))
+                {
+                case attributeMethod.drop("attribute_".length):
+                    __traits(getMember, xmlBuilder, attributeMethod) = dxml.util.decodeXML(entry.value);
+                    break switchLabel;
+                }
+                default:
+                    // ignore unknown attributes
+                    break;
+            }
+        }
+
+        void tagElement()
+        {
+        switchLabel:
+            switch (range.front.name)
+            {
+                static foreach (tagMethod; definedTags!(XmlBuilder!T))
+                {
+                case tagMethod.drop("tag_".length):
+                    __traits(getMember, xmlBuilder, tagMethod) = range;
+                    break switchLabel;
+                }
+                default:
+                    range.skipElement;
+                    break switchLabel;
+            }
+        }
+
+        void textElement()
+        {
+            static if (__traits(hasMember, xmlBuilder, "text"))
+            {
+                xmlBuilder.text = dxml.util.decodeXML(range.front.text);
+                range.popFront;
             }
             else
             {
-                alias DecodeType = SafeUnqual!Type;
-                enum isNullable = false;
+                throw new XmlException(format!"unexpected text entity in %s: '%s'"(currentTag, range.front.text));
             }
+        }
 
-            static if (is(Type : SumType!T, T...))
-            {
-                __traits(getMember, builder, builderField) = decodeSumType!T(node);
-            }
-            else static if (is(Type : SumType!T[], T...))
-            {
-                __traits(getMember, builder, builderField) = decodeSumTypeArray!T(node);
-            }
-            else static if (!Xml.attributeName!attributes(builderField).isNull)
-            {
-                enum name = Xml.attributeName!attributes(builderField).get;
+        range.byChildElement(&tagElement, &textElement);
 
-                static if (isNullable || __traits(getMember, T.ConstructorInfo.FieldInfo, constructorField).useDefault)
+        static foreach (finalizerMethod; definedFinalizers!(XmlBuilder!T))
+        {
+            __traits(getMember, xmlBuilder, finalizerMethod)();
+        }
+
+        return xmlBuilder.builder.builderValue;
+    }
+}
+
+private enum definedAttributes(T) = [__traits(allMembers, T)]
+    .filter!(a => a.startsWith("attribute_"))
+    .array;
+
+private enum definedTags(T) = [__traits(allMembers, T)]
+    .filter!(a => a.startsWith("tag_"))
+    .array;
+
+private enum definedFinalizers(T) = [__traits(allMembers, T)]
+    .filter!(a => a.startsWith("finalize_"))
+    .array;
+
+/*
+ * Technical explanation: to implement stream parsing, we take a type T and generate a XML parser type from it.
+ * The parser type has three types of methods:
+ *
+ * - attribute_foo(string): Process a 'foo' attribute
+ * - tag_Foo(Range): Process a 'Foo' tag
+ * - text(string): Process a text node
+ * - finalize_Foo(): called once after parsing
+ *
+ * The difference is that whereas T may have, say, aliased fields, the XmlBuilder!T corresponds *strictly*
+ * to the XML structure of T's element: `<T a="b"><.../> some text </T>`.
+ * It is capable of reacting to anything it sees directly, and setting the corresponding field on T's builder.
+ */
+private struct XmlBuilder(T)
+{
+    T.BuilderType!() builder;
+
+    mixin BuilderFields!(T, "this.builder");
+}
+
+private mixin template BuilderFields(T, string builderPath)
+{
+    static foreach (string constructorField; T.ConstructorInfo.fields)
+    {
+        static if (anySatisfy!(ApplyLeft!(sameField, constructorField), __traits(getAliasThis, T)))
+        {
+            // aliased to this, recurse
+            mixin BuilderFields!(
+                Unqual!(__traits(getMember, T.ConstructorInfo.FieldInfo, constructorField).Type),
+                builderPath ~ "." ~ optionallyRemoveTrailingUnderline!constructorField,
+            );
+        }
+        else
+        {
+            mixin XmlBuilderField!(
+                constructorField,
+                Unqual!(__traits(getMember, T.ConstructorInfo.FieldInfo, constructorField).Type),
+                builderPath ~ "." ~ optionallyRemoveTrailingUnderline!constructorField,
+                AliasSeq!(__traits(getMember, T.ConstructorInfo.FieldInfo, constructorField).attributes),
+            );
+        }
+    }
+}
+
+private template sameField(string lhs, string rhs)
+{
+    enum sameField = optionallyRemoveTrailingUnderline!lhs == optionallyRemoveTrailingUnderline!rhs;
+}
+
+private mixin template XmlBuilderField(string constructorField, T, string builderPath, attributes...)
+if (!Xml.elementName!attributes(typeName!(stripArray!T)).isNull)
+{
+    static if (is(T : U[], U) && !is(T == string))
+    {
+        enum isArray = true;
+        alias DecodeType = U;
+    }
+    else
+    {
+        enum isArray = false;
+        alias DecodeType = T;
+    }
+
+    enum name = Xml.elementName!attributes(typeName!DecodeType).get;
+
+    mixin(format!q{
+        static if (isArray)
+        {
+            DecodeType[] array_;
+
+            void finalize_%s()
+            {
+                mixin(builderPath) = array_;
+            }
+        }
+
+        void tag_%s(ref XmlRange range)
+        {
+            static if(__traits(compiles, .decodeUnchecked!(T, attributes)(range)))
+            {
+                mixin(builderPath) = decodeUnchecked!(T, attributes)(range);
+            }
+            else static if (is(T : U[], U))
+            {
+                array_ ~= decodeUnchecked!(Unqual!U, attributes)(range);
+            }
+            else
+            {
+                pragma(msg, "While decoding field '" ~ constructorField ~ "' of type " ~ T.stringof ~ ":");
+
+                // reproduce the error we swallowed earlier
+                auto _ = .decodeUnchecked!(T, attributes)(range);
+            }
+        }
+    }(name, name));
+}
+
+private mixin template XmlBuilderField(string constructorField, T, string builderPath, attributes...)
+if (!Xml.attributeName!attributes(optionallyRemoveTrailingUnderline!constructorField).isNull)
+{
+    enum attributeName = Xml.attributeName!attributes(optionallyRemoveTrailingUnderline!constructorField).get;
+
+    mixin(format!q{
+        void attribute_%s(const string value)
+        {
+            mixin(builderPath) = decodeAttributeLeaf!(T, attributeName, attributes)(value);
+        }
+    }(attributeName));
+}
+
+private mixin template XmlBuilderField(string constructorField, T, string builderPath, attributes...)
+if (udaIndex!(Xml.Text, attributes) != -1)
+{
+    void text(string value)
+    {
+        mixin(builderPath) = value;
+    }
+}
+
+private mixin template XmlBuilderField(string constructorField, T, string builderPath, attributes...)
+if (is(Unqual!T : SumType!U, U...) || is(Unqual!T : SumType!U[], U...))
+{
+    static if (is(Unqual!T : SumType!U, U...))
+    {
+        alias Types = staticMap!(stripArray, U);
+    }
+    else static if (is(Unqual!T : SumType!U[], U...))
+    {
+        alias Types = U;
+    }
+    else
+    {
+        static assert(false, "Unknown kind of sum type: ", T);
+    }
+
+    SumType!Types[] decodedValues;
+
+    static foreach (i, SubType; Types)
+    {
+        mixin XmlSumTypeBuilderMethod!(constructorField, T, builderPath, i);
+    }
+
+    mixin(format!q{
+        void finalize_%s()
+        {
+            static if (is(Unqual!T : SumType!U, U...))
+            {
+                enforce!XmlException(this.decodedValues.length != 0,
+                    format!`"%%s": no child element of %%(%%s, %%) in %%s`(
+                        builderPath, [staticMap!(typeName, Types)], this.decodedValues));
+
+                size_t[Types.length] occurrences;
+
+                static foreach (i, Type; Types)
                 {
-                    if (name in node.attributes)
-                    {
-                        __traits(getMember, builder, builderField)
-                            = decodeAttributeLeaf!(DecodeType, name, attributes)(node);
-                    }
+                    occurrences[i] = this.decodedValues.count!(a => a.has!Type);
                 }
-                else
+                enforce!XmlException(occurrences[].count!"a > 0" == 1,
+                    format!`"%%s": found more than one kind of element of %%(%%s, %%) in %%s`(
+                        builderPath, [staticMap!(typeName, Types)], this.decodedValues));
+
+                static foreach (i, Element; U)
                 {
-                    __traits(getMember, builder, builderField)
-                        = decodeAttributeLeaf!(DecodeType, name, attributes)(node);
-                }
-            }
-            else static if (!Xml.elementName!attributes(typeName!Type).isNull)
-            {
-
-                enum canDecodeNode = isNodeLeafType!(DecodeType, attributes)
-                    || __traits(compiles, .decodeUnchecked!(DecodeType, attributes)(XmlNode.init));
-
-                static if (canDecodeNode)
-                {
-                    enum name = Xml.elementName!attributes(typeName!Type).get;
-
-                    static if (isNullable)
                     {
-                        static if (__traits(getMember, T.ConstructorInfo.FieldInfo, constructorField).useDefault)
+                        alias MatchType = stripArray!Element;
+
+                        auto matches = this.decodedValues.filter!(a => a.has!MatchType).map!(a => a.get!MatchType);
+
+                        static if (is(MatchType : Element))
                         {
-                            // missing element = null
-                            auto child = node.findChild(name);
-
-                            if (!child.isNull)
+                            if (!matches.empty)
                             {
-                                __traits(getMember, builder, builderField)
-                                    = decodeUnchecked!(DecodeType, attributes)(child.get);
+                                enforce!XmlException(matches.dropOne.empty,
+                                    format!`"%%s": found more than one %%s in %%s`(
+                                        builderPath , MatchType.stringof, this.decodedValues));
+                                mixin(builderPath) = T(matches.front);
+                            }
+                        }
+                        else static if (is(MatchType[] : Element))
+                        {
+                            if (!matches.empty)
+                            {
+                                mixin(builderPath) = T(matches.array);
                             }
                         }
                         else
                         {
-                            auto child = node.requireChild(name);
-
-                            if (child.text.strip.empty)
-                            {
-                                // empty element = null
-                                __traits(getMember, builder, builderField) = Type();
-                            }
-                            else
-                            {
-                                __traits(getMember, builder, builderField)
-                                    = .decodeUnchecked!(DecodeType, attributes)(child);
-                            }
+                            static assert(false, "I forgot to handle this case sorry: ", MatchType, ", ", Element);
                         }
                     }
-                    else
-                    {
-                        static if (__traits(getMember, T.ConstructorInfo.FieldInfo, constructorField).useDefault)
-                        {
-                            // missing element = default
-                            auto child = node.findChild(name);
-
-                            if (!child.isNull)
-                            {
-                                __traits(getMember, builder, builderField)
-                                    = decodeUnchecked!(DecodeType, attributes)(child.get);
-                            }
-                        }
-                        else
-                        {
-                            auto child = node.requireChild(name);
-
-                            __traits(getMember, builder, builderField)
-                                = .decodeUnchecked!(DecodeType, attributes)(child);
-                        }
-                    }
-                }
-                else static if (is(DecodeType: U[], U))
-                {
-                    enum name = Xml.elementName!attributes(typeName!U).get;
-
-                    alias decodeChild = delegate U(XmlNode child)
-                    {
-                        return .decodeUnchecked!(U, attributes)(child);
-                    };
-
-                    auto children = node.findChildren(name).map!decodeChild.array;
-
-                    __traits(getMember, builder, builderField) = children;
-                }
-                else
-                {
-                    pragma(msg, "While decoding field '" ~ constructorField ~ "' of type " ~ DecodeType.stringof ~ ":");
-
-                    // reproduce the error we swallowed earlier
-                    auto _ = .decodeUnchecked!(DecodeType, attributes)(XmlNode.init);
                 }
             }
-            else static if (udaIndex!(Xml.Text, attributes) != -1)
+            else static if (is(Unqual!T : SumType!U[], U...))
             {
-                __traits(getMember, builder, builderField) = dxml.util.decodeXML(node.text);
+                mixin(builderPath) = this.decodedValues;
             }
             else
             {
-                enum sameField(string lhs, string rhs)
-                    = optionallyRemoveTrailingUnderline!lhs == optionallyRemoveTrailingUnderline!rhs;
-                enum memberIsAliasedToThis = anySatisfy!(
-                    ApplyLeft!(sameField, constructorField),
-                    __traits(getAliasThis, T));
-
-                static if (memberIsAliasedToThis)
-                {
-                    // decode inline
-                    __traits(getMember, builder, builderField) = .decodeUnchecked!(DecodeType, attributes)(node);
-                }
-                else
-                {
-                    static assert(
-                        __traits(getMember, T.ConstructorInfo.FieldInfo, constructorField).useDefault,
-                        "Field " ~ fullyQualifiedName!T ~ "." ~ constructorField ~ " is required but has no Xml tag");
-                }
+                static assert(false, "Unknown kind of sum type: ", T);
             }
-        }}
+        }
+    }(constructorField));
+}
 
-        return builder.builderValue();
+private alias stripArray(T) = T;
+private alias stripArray(T : string) = T;
+private alias stripArray(T : V[], V) = V;
+
+private bool has(T, U : SumType!V, V...)(U value) => value.match!(
+    (T _) => true,
+    staticMap!((_) => false, Erase!(T, V)),
+);
+
+private T get(T, U : SumType!V, V...)(U value) => value.match!(
+    (T value) => value,
+    staticMap!((_) => assert(false), Erase!(T, V)),
+);
+
+// Separate template so I can redefine types.
+private mixin template XmlSumTypeBuilderMethod(string constructorField, T, string builderPath, int i)
+{
+    static if (is(Unqual!T : SumType!U_, U_...))
+    {
+        alias U = U_;
+        alias SumTypeMember = U[i];
+    }
+    else static if (is(Unqual!T : SumType!U_[], U_...))
+    {
+        alias U = U_;
+        alias SumTypeMember = U[i];
+    }
+    else
+    {
+        static assert(false, "Unknown kind of sum type: ", T);
+    }
+
+    // SumType!(A[], B[])
+    static if (!is(SumTypeMember == string) && is(SumTypeMember: V[], V))
+    {
+        alias BaseType = V;
+    }
+    else
+    {
+        alias BaseType = SumTypeMember;
+    }
+
+    alias attributes = AliasSeq!(__traits(getAttributes, BaseType));
+
+    static if (Xml.elementName!attributes(typeName!BaseType).isNull)
+    {
+        static assert(false, fullyQualifiedName!BaseType ~
+            ": SumType component type must have an Xml.Element attribute indicating its element name.");
+    }
+    else
+    {
+        enum name = Xml.elementName!attributes(typeName!BaseType).get;
+
+        mixin(format!q{
+            void tag_%s(ref XmlRange range)
+            {
+                this.decodedValues ~= typeof(this.decodedValues.front)(decodeUnchecked!(BaseType, attributes)(range));
+            }
+        }(name));
     }
 }
 
 /**
- * Throws: XmlException if the XML element doesn't have a child matching exactly one of the subtypes,
- * or if the child doesn't match the subtype.
+ * Skip past the current element.
  */
-private SumType!Types decodeSumType(Types...)(XmlNode node)
+private void skipElement(ref XmlRange range)
+in (range.isElement)
 {
-    import std.algorithm : find, map, moveEmplace, sum;
-    import std.array : array, front;
-    import std.exception : enforce;
-    import std.meta : AliasSeq, staticMap;
-    import std.traits : fullyQualifiedName;
-    import std.typecons : apply, Nullable, nullable;
-    import text.xml.XmlException : XmlException;
+    range.byChildElement({ range.skipElement; }, { range.skipElement; });
+}
 
-    Nullable!(SumType!Types)[Types.length] decodedValues;
+/**
+ * `range` must point to an element. While there are sub-elements, this function
+ * points `range` at each sub-element and invokes `callback`. `callback` is required
+ * to advance the range past that sub-element entirely.
+ *
+ * Throws: XMLParsingException on well-formedness violation.
+ * Throws: XmlException on validity violation.
+ */
+private void byChildElement(ref XmlRange range, scope void delegate() nodeCallback, scope void delegate() textCallback)
+in (range.isElement)
+{
+    if (range.front.type == dxml.parser.EntityType.elementEmpty)
+    {
+        // no descendants
+        range.popFront;
+        return;
+    }
 
-    static foreach (i, Type; Types)
-    {{
-        static if (is(Type: U[], U))
+    auto tag = range.front.name;
+
+    range.popFront;
+
+    while (!range.empty)
+    {
+        final switch (range.front.type) with (dxml.parser.EntityType)
         {
-            enum isArray = true;
-            alias BaseType = U;
+            case cdata:
+            case comment:
+            case pi:
+                range.popFront;
+                continue;
+            case elementEnd:
+                enforce!XmlException(range.front.name == tag,
+                    format!"mismatched xml start and end tags: '%s', '%s'"(tag, range.front.name));
+                range.popFront;
+                return;
+            case text:
+                textCallback();
+                break;
+            case elementEmpty:
+            case elementStart:
+                nodeCallback();
+                break;
         }
-        else
-        {
-            enum isArray = false;
-            alias BaseType = Type;
-        }
+    }
+    throw new XmlException(format!"Unclosed XML tag %s"(tag));
+}
 
-        alias attributes = AliasSeq!(__traits(getAttributes, BaseType));
+private bool isElement(ref XmlRange range)
+{
+    return range.front.isElementStartToken;
+}
 
-        static assert(
-            !Xml.elementName!attributes(typeName!BaseType).isNull,
-            fullyQualifiedName!Type ~
-            ": SumType component type must have an Xml.Element attribute indicating its element name.");
-
-        enum name = Xml.elementName!attributes(typeName!BaseType).get;
-
-        static if (isArray)
-        {
-            auto children = node.findChildren(name);
-
-            if (!children.empty)
-            {
-                decodedValues[i] = SumType!Types(children.map!(a => a.decodeUnchecked!U).array);
-            }
-        }
-        else
-        {
-            auto child = node.findChild(name);
-
-            decodedValues[i] = child.apply!(a => SumType!Types(a.decodeUnchecked!Type));
-        }
-    }}
-
-    const matchedValues = decodedValues[].map!(a => a.isNull ? 0 : 1).sum;
-
-    enforce!XmlException(matchedValues != 0,
-        format!`Element "%s": no child element of %(%s, %)`(node.tag, [staticMap!(typeName, Types)]));
-    enforce!XmlException(matchedValues == 1,
-        format!`Element "%s": contained more than one of %(%s, %)`(node.tag, [staticMap!(typeName, Types)]));
-
-    // workaround for dmd2.100 issue (get returns ref)
-    auto result = decodedValues[].find!(a => !a.isNull).front.get;
-
-    return result;
+private bool isElementStartToken(const ElementType!XmlRange token)
+{
+    return token.type == dxml.parser.EntityType.elementStart
+        || token.type == dxml.parser.EntityType.elementEmpty;
 }
 
 /// Ditto.
-private SumType!Types decodeToplevelSumtype(Types...)(XmlNode node)
+private SumType!Types decodeToplevelSumtype(Types...)(ref XmlRange range)
 {
-    import std.algorithm : find, map, sum;
-    import std.exception : enforce;
-    import std.meta : AliasSeq, staticMap;
-    import std.range : front;
-    import std.typecons : Nullable;
     import text.xml.XmlException : XmlException;
 
     Nullable!(SumType!Types)[Types.length] decodedValues;
@@ -327,27 +502,24 @@ private SumType!Types decodeToplevelSumtype(Types...)(XmlNode node)
 
         enum name = Xml.elementName!attributes(typeName!Type).get;
 
-        if (node.tag == name)
+        if (range.front.name == name)
         {
-            decodedValues[i] = SumType!Types(node.decodeUnchecked!Type);
+            decodedValues[i] = SumType!Types(range.decodeUnchecked!Type);
         }
     }}
 
-    const matchedValues = decodedValues[].map!(a => a.isNull ? 0 : 1).sum;
+    const matchedValues = decodedValues[].count!(a => !a.isNull);
 
     enforce!XmlException(matchedValues != 0,
-        format!`Element "%s": no child element of %(%s, %)`(node.tag, [staticMap!(typeName, Types)]));
+        format!`Element "%s": no child element of %(%s, %)`(range.front.name, [staticMap!(typeName, Types)]));
     enforce!XmlException(matchedValues == 1,
-        format!`Element "%s": contained more than one of %(%s, %)`(node.tag, [staticMap!(typeName, Types)]));
+        format!`Element "%s": contained more than one of %(%s, %)`(range.front.name, [staticMap!(typeName, Types)]));
 
     return decodedValues[].find!(a => !a.isNull).front.get;
 }
 
 private SumType!Types[] decodeSumTypeArray(Types...)(XmlNode node)
 {
-    import std.meta : AliasSeq;
-    import std.traits : fullyQualifiedName;
-
     SumType!Types[] result;
 
     foreach (child; node.children)
@@ -374,7 +546,7 @@ private SumType!Types[] decodeSumTypeArray(Types...)(XmlNode node)
 
 private enum typeName(T) = typeof(cast() T.init).stringof;
 
-private auto decodeAttributeLeaf(T, string name, attributes...)(XmlNode node)
+private auto decodeAttributeLeaf(T, string name, attributes...)(string value)
 {
     alias typeAttributes = attributesOrNothing!T;
 
@@ -382,23 +554,25 @@ private auto decodeAttributeLeaf(T, string name, attributes...)(XmlNode node)
     {
         alias decodeFunction = attributes[udaIndex!(Xml.Decode, attributes)].DecodeFunction;
 
-        return decodeFunction(dxml.util.decodeXML(node.attributes[name]));
+        return decodeFunction(value);
     }
     else static if (udaIndex!(Xml.Decode, typeAttributes) != -1)
     {
         alias decodeFunction = typeAttributes[udaIndex!(Xml.Decode, typeAttributes)].DecodeFunction;
 
-        return decodeFunction(dxml.util.decodeXML(node.attributes[name]));
+        return decodeFunction(value);
     }
     else static if (is(T == enum))
     {
         import serialized.util.SafeEnum : safeToEnum;
 
-        return dxml.util.decodeXML(node.attributes[name]).safeToEnum!T;
+        return value.safeToEnum!T;
     }
     else
     {
-        return node.require!T(name);
+        import text.xml.Convert : Convert;
+
+        return Convert.to!T(value);
     }
 }
 
@@ -408,10 +582,14 @@ enum isNodeLeafType(T, attributes...) =
     || udaIndex!(Xml.Decode, attributesOrNothing!T) != -1
     || is(T == string)
     || is(T == enum)
-    || __traits(compiles, XmlNode.init.require!(SafeUnqual!T)());
+    || __traits(compiles, XmlNode.init.require!(SafeUnqual!T)())
+    || is(T : Nullable!U, U) && isNodeLeafType!(U, attributes);
 
-private auto decodeNodeLeaf(T, attributes...)(XmlNode node)
+private T decodeNodeLeaf(T, attributes...)(ref XmlRange range)
 {
+    import text.xml.Convert : Convert;
+    import text.xml.Parser : parseRange;
+
     alias typeAttributes = attributesOrNothing!T;
 
     static if (udaIndex!(Xml.Decode, attributes) != -1 || udaIndex!(Xml.Decode, typeAttributes) != -1)
@@ -425,6 +603,8 @@ private auto decodeNodeLeaf(T, attributes...)(XmlNode node)
             alias decodeFunction = typeAttributes[udaIndex!(Xml.Decode, typeAttributes)].DecodeFunction;
         }
 
+        auto node = parseRange(range);
+
         static if (__traits(isTemplate, decodeFunction))
         {
             return decodeFunction!T(node);
@@ -434,18 +614,84 @@ private auto decodeNodeLeaf(T, attributes...)(XmlNode node)
             return decodeFunction(node);
         }
     }
-    else static if (is(T == string))
-    {
-        return dxml.util.decodeXML(node.text).normalize;
-    }
-    else static if (is(T == enum))
-    {
-        import serialized.util.SafeEnum : safeToEnum;
-
-        return dxml.util.decodeXML(node.text).normalize.safeToEnum!T;
-    }
     else
     {
-        return node.require!(SafeUnqual!T)();
+        string text = parseTextElement(range);
+
+        static if (is(T == string))
+        {
+            return text;
+        }
+        else static if (is(T == enum))
+        {
+            import serialized.util.SafeEnum : safeToEnum;
+
+            return text.safeToEnum!T;
+        }
+        else static if (is(T : Nullable!U, U))
+        {
+            if (text.empty)
+            {
+                return T();
+            }
+            return T(Convert.to!U(text));
+
+        }
+        else
+        {
+            return Convert.to!T(text);
+        }
     }
+}
+
+private string parseTextElement(ref XmlRange range)
+{
+    import std.string : strip;
+
+    string startName = null;
+    string[] fragments = null;
+    int level = 0;
+
+    while (!range.empty)
+    {
+        final switch (range.front.type) with (dxml.parser.EntityType)
+        {
+            case cdata:
+            case comment:
+            case pi:
+                range.popFront;
+                break;
+            case elementStart:
+                if (level++ == 0)
+                {
+                    startName = range.front.name;
+                }
+                range.popFront;
+                break;
+            case elementEnd:
+                enforce!XmlException(range.front.name == startName,
+                    format!"mismatched xml start and end tags: '%s', '%s'"(startName, range.front.name));
+                range.popFront;
+                if (--level == 0)
+                {
+                    return fragments.join(" ").normalize;
+                }
+                break;
+            case text:
+                if (level == 1)
+                {
+                    fragments ~= dxml.util.decodeXML(range.front.text).strip;
+                }
+                range.popFront;
+                break;
+            case elementEmpty:
+                range.popFront;
+                if (level == 0)
+                {
+                    return fragments.join(" ").normalize;
+                }
+                break;
+        }
+    }
+    throw new XmlException(format!"Unclosed XML tag %s"(startName));
 }

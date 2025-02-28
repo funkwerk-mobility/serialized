@@ -14,6 +14,8 @@ import text.xml.XmlException;
 
 alias nodes = filter!(node => node.type == XmlNode.Type.element);
 
+private alias XmlRange = EntityRange!(simpleXML, string);
+
 /**
  * Throws: XmlException on validity violation.
  */
@@ -22,6 +24,25 @@ in (node.type == XmlNode.Type.element)
 {
     enforce!XmlException(node.tag == name,
         format!`element "%s": unexpected element (expected is "%s")`(node.tag, name));
+}
+
+/// Ditto
+void enforceName(XmlRange range, string name) pure @safe
+in (range.isElement)
+{
+    enforce!XmlException(range.front.name == name,
+        format!`element "%s": unexpected element (expected is "%s")`(range.front.name, name));
+}
+
+private bool isElement(ref XmlRange range) pure @safe
+{
+    return range.front.isElementStartToken;
+}
+
+private bool isElementStartToken(const ElementType!XmlRange token) pure @safe
+{
+    return token.type == dxml.parser.EntityType.elementStart
+        || token.type == dxml.parser.EntityType.elementEmpty;
 }
 
 /**

@@ -396,10 +396,10 @@ unittest
         decode!Value(`<Value><B b="3"/></Value>`).should.equal(Value(Either(B(3))));
 
         decode!Value(`<Value/>`).should.throwAn!XmlException
-            (`Element "Value": no child element of "A", "B"`);
+            (`"this.builder.field": no child element of "A", "B" in []`);
 
         decode!Value(`<Value><A a="5"/><B b="3"/></Value>`).should.throwAn!XmlException
-            (`Element "Value": contained more than one of "A", "B"`);
+            (`"this.builder.field": found more than one kind of element of "A", "B" in [A(5), B(3)]`);
     }
 }
 
@@ -442,10 +442,10 @@ unittest
         decode!Value(`<Value><A a="5"/><A a="6"/></Value>`).should.equal(Value(Either([A(5), A(6)])));
 
         decode!Value(`<Value/>`).should.throwAn!XmlException
-            (`Element "Value": no child element of "A[]", "B[]"`);
+            (`"this.builder.field": no child element of "A", "B" in []`);
 
         decode!Value(`<Value><A a="5"/><B b="3"/></Value>`).should.throwAn!XmlException
-            (`Element "Value": contained more than one of "A[]", "B[]"`);
+            (`"this.builder.field": found more than one kind of element of "A", "B" in [A(5), B(3)]`);
     }
 }
 

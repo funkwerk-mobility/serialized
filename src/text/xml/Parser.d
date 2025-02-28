@@ -23,7 +23,8 @@ public XmlNode parse(string content)
     try
     {
         auto range = parseXML!simpleXML(content);
-        return parseDocumentImpl(range, new MemoryManager);
+
+        return parseRange(range);
     }
     catch (XMLParsingException exception)
     {
@@ -32,11 +33,14 @@ public XmlNode parse(string content)
     }
 }
 
-private XmlNode parseDocumentImpl(ref EntityRange!(simpleXML, string) range,
-        MemoryManager memoryManager)
+package XmlNode parseRange(ref EntityRange!(simpleXML, string) range, MemoryManager memoryManager = null)
 in (!range.empty)
-in (memoryManager !is null)
 {
+    if (!memoryManager)
+    {
+        memoryManager = new MemoryManager;
+    }
+
     XmlNode xmlNode;
     alias toAttribute = attr => Attribute(attr.name, attr.value);
 
@@ -59,9 +63,9 @@ in (memoryManager !is null)
             {
                 memoryManager.releaseAppender(children);
             }
-            for (; range.front.type != EntityType.elementEnd; range.popFront)
+            while (range.front.type != EntityType.elementEnd)
             {
-                children.put(parseDocumentImpl(range, memoryManager));
+                children.put(parseRange(range, memoryManager));
             }
             xmlNode.children = children.data.dup;
 
@@ -77,6 +81,7 @@ in (memoryManager !is null)
             assert(false);
     }
 
+    range.popFront;
     return xmlNode;
 }
 
