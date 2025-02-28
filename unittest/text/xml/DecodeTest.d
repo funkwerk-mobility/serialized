@@ -616,7 +616,7 @@ unittest
     value.should.equal(expected);
 }
 
-@("nullable element")
+@("nullable value element")
 unittest
 {
     @(Xml.Element)
@@ -634,6 +634,37 @@ unittest
 
     // then
     auto expected = Container("foo".nullable);
+
+    value.should.equal(expected);
+}
+
+@("nullable nested element")
+unittest
+{
+    @(Xml.Element)
+    struct Value
+    {
+        @(Xml.Attribute)
+        private string value;
+
+        mixin(GenerateThis);
+    }
+
+    @(Xml.Element)
+    struct Container
+    {
+        @(This.Default)
+        @(Xml.Element)
+        private Nullable!Value value;
+
+        mixin(GenerateThis);
+    }
+
+    // when
+    auto value = decode!Container(`<Container><Value value="foo"/></Container>`);
+
+    // then
+    auto expected = Container(Value("foo").nullable);
 
     value.should.equal(expected);
 }

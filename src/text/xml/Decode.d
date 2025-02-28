@@ -200,11 +200,16 @@ private template sameField(string lhs, string rhs)
 }
 
 private mixin template XmlBuilderField(string constructorField, T, string builderPath, attributes...)
-if (!Xml.elementName!attributes(typeName!(stripArray!T)).isNull)
+if (!Xml.elementName!attributes("").isNull)
 {
-    static if (is(T : U[], U) && !is(T == string))
+    static if (!is(T == string) && is(T : U[], U))
     {
         enum isArray = true;
+        alias DecodeType = U;
+    }
+    else static if (is(T : Nullable!U, U) && !isNodeLeafType!(U, attributes))
+    {
+        enum isArray = false;
         alias DecodeType = U;
     }
     else
@@ -213,7 +218,14 @@ if (!Xml.elementName!attributes(typeName!(stripArray!T)).isNull)
         alias DecodeType = T;
     }
 
-    enum name = Xml.elementName!attributes(typeName!DecodeType).get;
+    static if (is(T : Nullable!V, V))
+    {
+        enum name = Xml.elementName!attributes(typeName!V).get;
+    }
+    else
+    {
+        enum name = Xml.elementName!attributes(typeName!DecodeType).get;
+    }
 
     mixin(format!q{
         static if (isArray)
@@ -229,20 +241,30 @@ if (!Xml.elementName!attributes(typeName!(stripArray!T)).isNull)
         @(name)
         void tag_%s(ref XmlRange range)
         {
-            static if(__traits(compiles, .decodeUnchecked!(T, attributes)(range)))
-            {
-                mixin(builderPath) = decodeUnchecked!(T, attributes)(range);
-            }
-            else static if (is(T : U[], U))
+            static if (isArray)
             {
                 array_ ~= decodeUnchecked!(Unqual!U, attributes)(range);
+            }
+            else static if(__traits(compiles, .decodeUnchecked!(DecodeType, attributes)(range)))
+            {
+                auto value = decodeUnchecked!(DecodeType, attributes)(range);
+
+                static if (is(typeof(value) : T))
+                {
+                    // decoder who returned a Nullable!T; assign directly
+                    mixin(builderPath) = value;
+                }
+                else
+                {
+                    mixin(builderPath) = value.nullable;
+                }
             }
             else
             {
                 pragma(msg, "While decoding field '" ~ constructorField ~ "' of type " ~ T.stringof ~ ":");
 
                 // reproduce the error we swallowed earlier
-                auto _ = .decodeUnchecked!(T, attributes)(range);
+                auto _ = .decodeUnchecked!(DecodeType, attributes)(range);
             }
         }
     }(name.cleanupIdentifier, name.cleanupIdentifier));
@@ -570,7 +592,9 @@ private auto decodeAttributeLeaf(T, string name, attributes...)(string value)
     }
     else static if (is(T : Nullable!U, U))
     {
-        return value.decodeAttributeLeaf!(U, name, attributes).nullable;
+        import text.xml.Convert : Convert;
+
+        return T(Convert.to!U(value));
     }
     else static if (is(T == enum))
     {
