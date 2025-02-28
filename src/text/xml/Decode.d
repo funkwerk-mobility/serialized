@@ -99,18 +99,17 @@ public T decodeUnchecked(T, attributes...)(ref XmlRange range)
 
         void tagElement()
         {
-        switchLabel:
             switch (range.front.name)
             {
                 static foreach (tagMethod; definedTags!(XmlBuilder!T))
                 {
                 case __traits(getAttributes, __traits(getMember, xmlBuilder, tagMethod))[0]:
                     __traits(getMember, xmlBuilder, tagMethod) = range;
-                    break switchLabel;
+                    return;
                 }
                 default:
                     range.skipElement;
-                    break switchLabel;
+                    return;
             }
         }
 
@@ -289,7 +288,7 @@ if (udaIndex!(Xml.Text, attributes) != -1)
 {
     void text(string value)
     {
-        mixin(builderPath) = value;
+        mixin(builderPath) = value.dup;
     }
 }
 
@@ -654,7 +653,7 @@ private T decodeNodeLeaf(T, attributes...)(ref XmlRange range)
 
         static if (is(T == string))
         {
-            return text;
+            return text.dup;
         }
         else static if (is(T == enum))
         {
