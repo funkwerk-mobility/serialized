@@ -4,6 +4,88 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [1.17.0] - 2025-02-28
+### Changed
+- Use XML stream parser for decoding.
+
+## [1.16.1] - 2024-08-12
+### Fixed
+- Speed up `Convert.toString(SysTime)` by reimplementing `toISOExtString` manually.
+
+## [1.16.0] - 2024-08-09
+### Added
+- Vendor XML stream writer from dxml under `funkwerk.dxml.writer` to improve performance.
+
+## [1.15.2] - 2024-08-09
+### Fixed
+- Avoid evaluating member values that we're not including.
+
+## [1.15.1] - 2024-08-09
+### Fixed
+- Fix wrapper copying writer instead of capturing by ref in XML stream encoding.
+
+## [1.15.0] - 2024-08-08
+### Added
+- XML: Add `void encode(value, sink);` to encode to an output stream.
+
+## [1.14.1] - 2024-07-26
+### Fixed
+- XML: Support SysTime as an element's text value.
+
+## [1.14.0] - 2024-07-26
+### Added
+- XML: Allow decoding a document where the top element can be one of n different types, identified by tag name.
+
+## [1.13.7] - 2024-05-21
+### Added
+- Allow `decode` helper to take std.data.json JSON stream.
+
+## [1.13.6] - 2023-11-09
+### Fixed
+- Restore non-nullable default field behavior.
+
+## [1.13.5] - 2023-10-23
+### Fixed
+- Fix build on DMD 2.097.
+
+## [1.13.4] - 2023-10-20
+### Fixed
+- Fix variable declaration collision when decoding enum with more than one member.
+
+## [1.13.3] - 2023-10-20
+### Fixed
+- Support keywords in JSON-style enums as well.
+
+## [1.13.2] - 2023-10-19
+### Fixed
+- Fix encoding/decoding of reserved-keyword enum members.
+
+## [1.13.1] - 2023-06-30
+### Fixed
+- Dup string literals on decoding to break references to the input stream.
+
+## [1.13.0] - 2023-06-12
+### Added
+- Implement alias-this masking in JSON serialization.
+
+## [1.12.0] - 2023-06-12
+### Changed
+- Remove deprecated text.xml.tree module.
+
+## [1.11.0] - 2023-04-18
+### Added
+- Json.Encode: Custom encoders can chain.
+
+## [1.10.0] - 2023-04-18
+### Changed
+- Move package `meta` to `serialized.meta`. These modules shouldn't be externally used anyways.
+
+## [1.9.1] - 2023-03-04
+### Fixed
+- Fix stdx.data.json for -preview=in on 2.102.2
+
 ## [1.9.0] - 2023-01-11
 ### Added
 - Interpret boilerplate's `@AliasThis` equivalent to `alias this` in JSON encoding/decoding.
@@ -33,6 +115,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.6.1] - 2022-08-10
 ### Fixed
 - JSON: Encode `Nullable.null` as `null`.
+
+## [1.6.0] - 2022-08-09
+### Changed
+- Nullable!T() is now encoded as `null` if there is no `@(This.Default)` annotation set.
 
 ## [1.5.6] - 2022-07-15
 ### Fixed

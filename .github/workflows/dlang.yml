@@ -13,15 +13,15 @@ jobs:
     name: Dub Tests
     strategy:
       matrix:
-        dc: [dmd-2.097.2, dmd-2.099.1, dmd-2.102.2, ldc-1.27.1, ldc-1.29.0, ldc-1.32.2]
+        dc: [dmd-2.099.1, dmd-2.102.2, dmd-2.106.1, ldc-1.29.0, ldc-1.32.2, ldc-1.36.0]
 
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Install D compiler
-      uses: dlang-community/setup-dlang@v1
+      uses: dlang-community/setup-dlang@v2
       with:
         compiler: ${{ matrix.dc }}
 

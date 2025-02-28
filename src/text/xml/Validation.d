@@ -14,6 +14,8 @@ import text.xml.XmlException;
 
 alias nodes = filter!(node => node.type == XmlNode.Type.element);
 
+private alias XmlRange = EntityRange!(simpleXML, string);
+
 /**
  * Throws: XmlException on validity violation.
  */
@@ -22,6 +24,25 @@ in (node.type == XmlNode.Type.element)
 {
     enforce!XmlException(node.tag == name,
         format!`element "%s": unexpected element (expected is "%s")`(node.tag, name));
+}
+
+/// Ditto
+void enforceName(XmlRange range, string name) pure @safe
+in (range.isElement)
+{
+    enforce!XmlException(range.front.name == name,
+        format!`element "%s": unexpected element (expected is "%s")`(range.front.name, name));
+}
+
+private bool isElement(ref XmlRange range) pure @safe
+{
+    return range.front.isElementStartToken;
+}
+
+private bool isElementStartToken(const ElementType!XmlRange token) pure @safe
+{
+    return token.type == dxml.parser.EntityType.elementStart
+        || token.type == dxml.parser.EntityType.elementEmpty;
 }
 
 /**
@@ -161,15 +182,7 @@ template requireImpl(string conversion)
     T requireImpl(T)(XmlNode node)
     in (node.type == XmlNode.Type.element)
     {
-        string text = dxml.util.decodeXML(node.text);
-
-        static if (is(T == string))
-        {
-            if (text.sameHead(node.text))
-            {
-                text = text.idup;
-            }
-        }
+        const string text = dxml.util.decodeXML(node.text).safetyDup(node.text);
 
         try
         {
@@ -190,15 +203,7 @@ template requireImpl(string conversion)
         enforce!XmlException(name in node.attributes,
             format!`element "%s": required attribute "%s" is missing`(node.tag, name));
 
-        string value = dxml.util.decodeXML(node.attributes[name]);
-
-        static if (is(T == string))
-        {
-            if (value.sameHead(node.attributes[name]))
-            {
-                value = value.idup;
-            }
-        }
+        const string value = dxml.util.decodeXML(node.attributes[name]).safetyDup(node.attributes[name]);
 
         try
         {
@@ -221,15 +226,7 @@ template requireImpl(string conversion)
             return fallback;
         }
 
-        string value = dxml.util.decodeXML(node.attributes[name]);
-
-        static if (is(T == string))
-        {
-            if (value.sameHead(node.attributes[name]))
-            {
-                value = value.idup;
-            }
-        }
+        const string value = dxml.util.decodeXML(node.attributes[name]).safetyDup(node.text);
 
         try
         {
@@ -240,6 +237,21 @@ template requireImpl(string conversion)
             throw new XmlException(format!`element "%s", attribute "%s": %s`(node.tag, name, exception.msg));
         }
     }
+}
+
+/**
+ * If `value` is from `base`, make sure it's dupped.
+ * This is to ensure that we break every reference to the (large) string that we're parsing from.
+ * If we've already decoded entities, creating a new string, this is not necessary.
+ * Intended to be paired with `decodeXML`.
+ */
+public string safetyDup(string value, string base) pure @safe
+{
+    if (!value.sameHead(base))
+    {
+        return value;
+    }
+    return value.idup;
 }
 
 public string normalize(string value) pure @safe

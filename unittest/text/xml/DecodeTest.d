@@ -4,6 +4,7 @@ import boilerplate;
 import dshould;
 import std.datetime;
 import std.sumtype : match, SumType;
+import std.typecons;
 import text.xml.Decode;
 import text.xml.Tree;
 import text.xml.Xml;
@@ -147,8 +148,6 @@ unittest
 @("element field has default")
 unittest
 {
-    import std.typecons : Nullable;
-
     @(Xml.Element("root"))
     struct Value
     {
@@ -174,8 +173,6 @@ unittest
 @("field is Nullable default")
 unittest
 {
-    import std.typecons : Nullable;
-
     @(Xml.Element("root"))
     struct Value
     {
@@ -201,8 +198,6 @@ unittest
 @("field and decoder are Nullable")
 unittest
 {
-    import std.typecons : Nullable;
-
     static Nullable!int returnsNull(const XmlNode)
     {
         return Nullable!int();
@@ -234,8 +229,6 @@ unittest
 @("field is Nullable")
 unittest
 {
-    import std.typecons : Nullable;
-
     @(Xml.Element("root"))
     struct Value
     {
@@ -396,10 +389,10 @@ unittest
         decode!Value(`<Value><B b="3"/></Value>`).should.equal(Value(Either(B(3))));
 
         decode!Value(`<Value/>`).should.throwAn!XmlException
-            (`Element "Value": no child element of "A", "B"`);
+            (`"this.builder.field": no child element of "A", "B" in []`);
 
         decode!Value(`<Value><A a="5"/><B b="3"/></Value>`).should.throwAn!XmlException
-            (`Element "Value": contained more than one of "A", "B"`);
+            (`"this.builder.field": found more than one kind of element of "A", "B" in [A(5), B(3)]`);
     }
 }
 
@@ -442,10 +435,10 @@ unittest
         decode!Value(`<Value><A a="5"/><A a="6"/></Value>`).should.equal(Value(Either([A(5), A(6)])));
 
         decode!Value(`<Value/>`).should.throwAn!XmlException
-            (`Element "Value": no child element of "A[]", "B[]"`);
+            (`"this.builder.field": no child element of "A", "B" in []`);
 
         decode!Value(`<Value><A a="5"/><B b="3"/></Value>`).should.throwAn!XmlException
-            (`Element "Value": contained more than one of "A[]", "B[]"`);
+            (`"this.builder.field": found more than one kind of element of "A", "B" in [A(5), B(3)]`);
     }
 }
 
@@ -565,6 +558,113 @@ unittest
 
     // then
     auto expected = Container([Value(1), Value(2), Value(3)]);
+
+    value.should.equal(expected);
+}
+
+@("attribute/element with namespace")
+unittest
+{
+    struct Value
+    {
+        @(Xml.Attribute("test:value"))
+        private int value_;
+
+        mixin(GenerateThis);
+    }
+
+    @(Xml.Element)
+    struct Container
+    {
+        @(Xml.Element("test:Value"))
+        immutable(Value)[] values;
+
+        mixin(GenerateThis);
+    }
+
+    // when
+    auto value = decode!Container(`<Container>
+        <test:Value test:value="1"/>
+        <test:Value test:value="2"/>
+    </Container>`);
+
+    // then
+    auto expected = Container([Value(1), Value(2)]);
+
+    value.should.equal(expected);
+}
+
+@("nullable attribute")
+unittest
+{
+    @(Xml.Element)
+    struct Container
+    {
+        @(This.Default)
+        @(Xml.Attribute)
+        private Nullable!string value;
+
+        mixin(GenerateThis);
+    }
+
+    // when
+    auto value = decode!Container(`<Container value=""/>`);
+
+    // then
+    auto expected = Container("".nullable);
+
+    value.should.equal(expected);
+}
+
+@("nullable value element")
+unittest
+{
+    @(Xml.Element)
+    struct Container
+    {
+        @(This.Default)
+        @(Xml.Element("Value"))
+        private Nullable!string value;
+
+        mixin(GenerateThis);
+    }
+
+    // when
+    auto value = decode!Container(`<Container><Value>foo</Value></Container>`);
+
+    // then
+    auto expected = Container("foo".nullable);
+
+    value.should.equal(expected);
+}
+
+@("nullable nested element")
+unittest
+{
+    @(Xml.Element)
+    struct Value
+    {
+        @(Xml.Attribute)
+        private string value;
+
+        mixin(GenerateThis);
+    }
+
+    @(Xml.Element)
+    struct Container
+    {
+        @(This.Default)
+        @(Xml.Element)
+        private Nullable!Value value;
+
+        mixin(GenerateThis);
+    }
+
+    // when
+    auto value = decode!Container(`<Container><Value value="foo"/></Container>`);
+
+    // then
+    auto expected = Container(Value("foo").nullable);
 
     value.should.equal(expected);
 }
