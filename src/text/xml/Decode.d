@@ -305,7 +305,7 @@ if (is(Unqual!T : SumType!U, U...) || is(Unqual!T : SumType!U[], U...))
     }
     else
     {
-        static assert(false, "Unknown kind of sum type: ", T);
+        static assert(false, "Unknown kind of sum type: " ~ T.stringof);
     }
 
     SumType!Types[] decodedValues;
@@ -360,7 +360,8 @@ if (is(Unqual!T : SumType!U, U...) || is(Unqual!T : SumType!U[], U...))
                         }
                         else
                         {
-                            static assert(false, "I forgot to handle this case sorry: ", MatchType, ", ", Element);
+                            static assert(false,
+                                "I forgot to handle this case sorry: " ~ MatchType.stringof ~ ", " ~ Element.stringof);
                         }
                     }
                 }
@@ -371,7 +372,7 @@ if (is(Unqual!T : SumType!U, U...) || is(Unqual!T : SumType!U[], U...))
             }
             else
             {
-                static assert(false, "Unknown kind of sum type: ", T);
+                static assert(false, "Unknown kind of sum type: " ~ T.stringof);
             }
         }
     }(constructorField.cleanupIdentifier));
@@ -381,15 +382,21 @@ private alias stripArray(T) = T;
 private alias stripArray(T : string) = T;
 private alias stripArray(T : V[], V) = V;
 
-private bool has(T, U : SumType!V, V...)(U value) => value.match!(
-    (T _) => true,
-    staticMap!((_) => false, Erase!(T, V)),
-);
+private bool has(T, U : SumType!V, V...)(U value)
+{
+    return value.match!(
+        (T _) => true,
+        staticMap!((_) => false, Erase!(T, V)),
+    );
+}
 
-private T get(T, U : SumType!V, V...)(U value) => value.match!(
-    (T value) => value,
-    staticMap!((_) => assert(false), Erase!(T, V)),
-);
+private T get(T, U : SumType!V, V...)(U value)
+{
+    return value.match!(
+        (T value) => value,
+        staticMap!((_) => assert(false), Erase!(T, V)),
+    );
+}
 
 // Separate template so I can redefine types.
 private mixin template XmlSumTypeBuilderMethod(string constructorField, T, string builderPath, int i)
@@ -406,7 +413,7 @@ private mixin template XmlSumTypeBuilderMethod(string constructorField, T, strin
     }
     else
     {
-        static assert(false, "Unknown kind of sum type: ", T);
+        static assert(false, "Unknown kind of sum type: " ~ T.stringof);
     }
 
     // SumType!(A[], B[])
