@@ -4,6 +4,7 @@ import boilerplate;
 import dshould;
 import std.datetime;
 import std.sumtype : match, SumType;
+import std.typecons;
 import text.xml.Decode;
 import text.xml.Tree;
 import text.xml.Xml;
@@ -147,8 +148,6 @@ unittest
 @("element field has default")
 unittest
 {
-    import std.typecons : Nullable;
-
     @(Xml.Element("root"))
     struct Value
     {
@@ -174,8 +173,6 @@ unittest
 @("field is Nullable default")
 unittest
 {
-    import std.typecons : Nullable;
-
     @(Xml.Element("root"))
     struct Value
     {
@@ -201,8 +198,6 @@ unittest
 @("field and decoder are Nullable")
 unittest
 {
-    import std.typecons : Nullable;
-
     static Nullable!int returnsNull(const XmlNode)
     {
         return Nullable!int();
@@ -234,8 +229,6 @@ unittest
 @("field is Nullable")
 unittest
 {
-    import std.typecons : Nullable;
-
     @(Xml.Element("root"))
     struct Value
     {
@@ -597,6 +590,50 @@ unittest
 
     // then
     auto expected = Container([Value(1), Value(2)]);
+
+    value.should.equal(expected);
+}
+
+@("nullable attribute")
+unittest
+{
+    @(Xml.Element)
+    struct Container
+    {
+        @(This.Default)
+        @(Xml.Attribute)
+        private Nullable!string value;
+
+        mixin(GenerateThis);
+    }
+
+    // when
+    auto value = decode!Container(`<Container value=""/>`);
+
+    // then
+    auto expected = Container("".nullable);
+
+    value.should.equal(expected);
+}
+
+@("nullable element")
+unittest
+{
+    @(Xml.Element)
+    struct Container
+    {
+        @(This.Default)
+        @(Xml.Element("Value"))
+        private Nullable!string value;
+
+        mixin(GenerateThis);
+    }
+
+    // when
+    auto value = decode!Container(`<Container><Value>foo</Value></Container>`);
+
+    // then
+    auto expected = Container("foo".nullable);
 
     value.should.equal(expected);
 }

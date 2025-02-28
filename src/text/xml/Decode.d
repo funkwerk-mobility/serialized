@@ -568,6 +568,10 @@ private auto decodeAttributeLeaf(T, string name, attributes...)(string value)
 
         return decodeFunction(value);
     }
+    else static if (is(T : Nullable!U, U))
+    {
+        return value.decodeAttributeLeaf!(U, name, attributes).nullable;
+    }
     else static if (is(T == enum))
     {
         import serialized.util.SafeEnum : safeToEnum;
