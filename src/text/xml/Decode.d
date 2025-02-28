@@ -16,8 +16,9 @@ import std.string : stripLeft;
 import std.sumtype;
 import std.traits;
 import std.typecons;
+import text.xml.Convert;
 import text.xml.Tree;
-import text.xml.Validation : enforceName, normalize, require, requireChild;
+import text.xml.Validation : enforceName, normalize, safetyDup;
 import text.xml.XmlException;
 public import text.xml.Xml;
 
@@ -88,7 +89,9 @@ public T decodeUnchecked(T, attributes...)(ref XmlRange range)
                 static foreach (attributeMethod; definedAttributes!(XmlBuilder!T))
                 {
                 case __traits(getAttributes, __traits(getMember, xmlBuilder, attributeMethod))[0]:
-                    __traits(getMember, xmlBuilder, attributeMethod) = dxml.util.decodeXML(entry.value);
+                    const value = dxml.util.decodeXML(entry.value).safetyDup(entry.value);
+
+                    __traits(getMember, xmlBuilder, attributeMethod) = value;
                     break switchLabel;
                 }
                 default:
@@ -117,7 +120,7 @@ public T decodeUnchecked(T, attributes...)(ref XmlRange range)
         {
             static if (__traits(hasMember, xmlBuilder, "text"))
             {
-                xmlBuilder.text = dxml.util.decodeXML(range.front.text);
+                xmlBuilder.text = dxml.util.decodeXML(range.front.text).safetyDup(range.front.text);
                 range.popFront;
             }
             else
@@ -288,7 +291,7 @@ if (udaIndex!(Xml.Text, attributes) != -1)
 {
     void text(string value)
     {
-        mixin(builderPath) = value.idup;
+        mixin(builderPath) = value;
     }
 }
 
@@ -622,12 +625,11 @@ enum isNodeLeafType(T, attributes...) =
     || udaIndex!(Xml.Decode, attributesOrNothing!T) != -1
     || is(T == string)
     || is(T == enum)
-    || __traits(compiles, XmlNode.init.require!(SafeUnqual!T)())
+    || __traits(compiles, Convert.to!(SafeUnqual!T)(string.init))
     || is(T : Nullable!U, U) && isNodeLeafType!(U, attributes);
 
 private T decodeNodeLeaf(T, attributes...)(ref XmlRange range)
 {
-    import text.xml.Convert : Convert;
     import text.xml.Parser : parseRange;
 
     alias typeAttributes = attributesOrNothing!T;
@@ -658,11 +660,7 @@ private T decodeNodeLeaf(T, attributes...)(ref XmlRange range)
     {
         string text = parseTextElement(range);
 
-        static if (is(T == string))
-        {
-            return text.idup;
-        }
-        else static if (is(T == enum))
+        static if (is(T == enum))
         {
             import serialized.util.SafeEnum : safeToEnum;
 
@@ -720,7 +718,7 @@ private string parseTextElement(ref XmlRange range)
             case text:
                 if (level == 1)
                 {
-                    fragments ~= dxml.util.decodeXML(range.front.text).strip;
+                    fragments ~= dxml.util.decodeXML(range.front.text).strip.safetyDup(range.front.text);
                 }
                 range.popFront;
                 break;
