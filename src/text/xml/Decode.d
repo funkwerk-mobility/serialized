@@ -87,7 +87,7 @@ public T decodeUnchecked(T, attributes...)(ref XmlRange range)
             {
                 static foreach (attributeMethod; definedAttributes!(XmlBuilder!T))
                 {
-                case attributeMethod.drop("attribute_".length):
+                case __traits(getAttributes, __traits(getMember, xmlBuilder, attributeMethod))[0]:
                     __traits(getMember, xmlBuilder, attributeMethod) = dxml.util.decodeXML(entry.value);
                     break switchLabel;
                 }
@@ -104,7 +104,7 @@ public T decodeUnchecked(T, attributes...)(ref XmlRange range)
             {
                 static foreach (tagMethod; definedTags!(XmlBuilder!T))
                 {
-                case tagMethod.drop("tag_".length):
+                case __traits(getAttributes, __traits(getMember, xmlBuilder, tagMethod))[0]:
                     __traits(getMember, xmlBuilder, tagMethod) = range;
                     break switchLabel;
                 }
@@ -226,6 +226,7 @@ if (!Xml.elementName!attributes(typeName!(stripArray!T)).isNull)
             }
         }
 
+        @(name)
         void tag_%s(ref XmlRange range)
         {
             static if(__traits(compiles, .decodeUnchecked!(T, attributes)(range)))
@@ -244,7 +245,7 @@ if (!Xml.elementName!attributes(typeName!(stripArray!T)).isNull)
                 auto _ = .decodeUnchecked!(T, attributes)(range);
             }
         }
-    }(name, name));
+    }(name.cleanupIdentifier, name.cleanupIdentifier));
 }
 
 private mixin template XmlBuilderField(string constructorField, T, string builderPath, attributes...)
@@ -253,11 +254,12 @@ if (!Xml.attributeName!attributes(optionallyRemoveTrailingUnderline!constructorF
     enum attributeName = Xml.attributeName!attributes(optionallyRemoveTrailingUnderline!constructorField).get;
 
     mixin(format!q{
+        @(attributeName)
         void attribute_%s(const string value)
         {
             mixin(builderPath) = decodeAttributeLeaf!(T, attributeName, attributes)(value);
         }
-    }(attributeName));
+    }(attributeName.cleanupIdentifier));
 }
 
 private mixin template XmlBuilderField(string constructorField, T, string builderPath, attributes...)
@@ -351,7 +353,7 @@ if (is(Unqual!T : SumType!U, U...) || is(Unqual!T : SumType!U[], U...))
                 static assert(false, "Unknown kind of sum type: ", T);
             }
         }
-    }(constructorField));
+    }(constructorField.cleanupIdentifier));
 }
 
 private alias stripArray(T) = T;
@@ -408,13 +410,17 @@ private mixin template XmlSumTypeBuilderMethod(string constructorField, T, strin
         enum name = Xml.elementName!attributes(typeName!BaseType).get;
 
         mixin(format!q{
+            @(name)
             void tag_%s(ref XmlRange range)
             {
                 this.decodedValues ~= typeof(this.decodedValues.front)(decodeUnchecked!(BaseType, attributes)(range));
             }
-        }(name));
+        }(name.cleanupIdentifier));
     }
 }
+
+// XML identifiers can have namespaces separated by colons; this is not valid in D.
+private alias cleanupIdentifier = name => name.replace(":", "_");
 
 /**
  * Skip past the current element.

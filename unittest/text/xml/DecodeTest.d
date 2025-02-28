@@ -569,6 +569,38 @@ unittest
     value.should.equal(expected);
 }
 
+@("attribute/element with namespace")
+unittest
+{
+    struct Value
+    {
+        @(Xml.Attribute("test:value"))
+        private int value_;
+
+        mixin(GenerateThis);
+    }
+
+    @(Xml.Element)
+    struct Container
+    {
+        @(Xml.Element("test:Value"))
+        immutable(Value)[] values;
+
+        mixin(GenerateThis);
+    }
+
+    // when
+    auto value = decode!Container(`<Container>
+        <test:Value test:value="1"/>
+        <test:Value test:value="2"/>
+    </Container>`);
+
+    // then
+    auto expected = Container([Value(1), Value(2)]);
+
+    value.should.equal(expected);
+}
+
 @(Xml.Element("root"))
 private struct Value
 {
