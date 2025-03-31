@@ -66,6 +66,14 @@ private void encodeNode(T, Writer, attributes...)(ref XMLWriter!Writer writer, c
     enum elementName = Xml.elementName!attributes(typeName!T).get;
 
     static assert({ checkName(elementName);  return true; }());
+
+    static foreach (member; FilterMembers!(T, value, false))
+    {
+        static if (udaIndex!(Xml.Comment, __traits(getAttributes, __traits(getMember, value, member))) != -1)
+        {
+            writer.writeComment(encodeLeafImpl(__traits(getMember, value, member)), Newline.no);
+        }
+    }
     writer.openStartTag(elementName, Newline.no);
 
     // encode all the attribute members
@@ -98,6 +106,7 @@ private void encodeNode(T, Writer, attributes...)(ref XMLWriter!Writer writer, c
         enum hasXmlTag = !Xml.elementName!memberAttrs(typeName!PlainMemberT).isNull
             || udaIndex!(Xml.Text, memberAttrs) != -1;
         enum isSumType = is(PlainMemberT : SumType!U, U...);
+
         static if (__traits(hasMember, T, "ConstructorInfo")
             && __traits(hasMember, T.ConstructorInfo.FieldInfo, member))
         {

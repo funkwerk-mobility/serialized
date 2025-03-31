@@ -21,6 +21,10 @@ struct Xml
     {
     }
 
+    public static struct Comment
+    {
+    }
+
     public alias attributeName(attributes...) = attributeNameImpl!(Attribute, AttributeName, attributes);
 
     public alias elementName(attributes...) = attributeNameImpl!(Element, ElementName, attributes);

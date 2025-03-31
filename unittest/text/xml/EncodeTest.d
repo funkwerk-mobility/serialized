@@ -405,6 +405,25 @@ template encodeTests(bool streamEncode)
         // then
         text.should.equal(`<Value>2003-02-01T12:00:00</Value>`);
     }
+
+    @(prefix ~ ": comment element")
+    unittest
+    {
+        @(Xml.Element)
+        struct Value
+        {
+            @(Xml.Comment)
+            string comment;
+
+            mixin(GenerateThis);
+        }
+
+        // when
+        const text = Value("foo").testEncode;
+
+        // then
+        text.should.equal(`<!--foo--><Value/>`);
+    }
 }
 
 @(Xml.Element("root"))

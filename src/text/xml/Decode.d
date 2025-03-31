@@ -210,6 +210,11 @@ public auto decodeUnchecked(T, attributes...)(XmlNode node)
             {
                 __traits(getMember, builder, builderField) = dxml.util.decodeXML(node.text);
             }
+            else static if (udaIndex!(Xml.Comment, attributes) != -1)
+            {
+                static assert(__traits(getMember, T.ConstructorInfo.FieldInfo, constructorField).useDefault,
+                    "Comment annotated field must have default value for decoding");
+            }
             else
             {
                 enum sameField(string lhs, string rhs)

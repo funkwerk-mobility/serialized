@@ -476,6 +476,23 @@ unittest
     }
 }
 
+@("comment element")
+unittest
+{
+    @(Xml.Element)
+    struct Value
+    {
+        @(Xml.Comment)
+        @(This.Default!(""))
+        string comment;
+
+        mixin(GenerateThis);
+    }
+
+    // when/then
+    decode!Value("<!--foo--><Value/>").should.equal(Value(""));
+}
+
 private struct SumTypeFixture
 {
     @(Xml.Element("A"))
