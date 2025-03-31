@@ -94,6 +94,8 @@ public template decodeJsonInternal(T, alias transform, Flag!"logErrors" logError
         import std.meta : AliasSeq, aliasSeqOf, anySatisfy, ApplyLeft, Filter;
         import std.range : array, assocArray, ElementType, enumerate;
 
+        enum string[] aliasedMembers = [__traits(getAliasThis, T)];
+
         static if (is(Unqual!T == JSONValue))
         {
             return decodeJSONValue(jsonStream, mask);
@@ -114,6 +116,15 @@ public template decodeJsonInternal(T, alias transform, Flag!"logErrors" logError
 
             return transform!T(.decodeJson!(EncodedType, transform, logErrors, attributes)(
                 jsonStream, target));
+        }
+        else static if (aliasedMembers.length == 1 && __traits(hasMember, T, "ConstructorInfo") &&
+            aliasedMembers == T.ConstructorInfo.fields)
+        {
+            alias U = AliasSeq!(__traits(getMember, T.ConstructorInfo.FieldInfo, aliasedMembers[0]))[0].Type;
+            const nextValue = .decodeJson!(U, transform, logErrors, attributes)(
+                jsonStream, target);
+
+            return CopyConstness!(typeof(T.__ctor), T)(nextValue);
         }
         else
         {
@@ -251,7 +262,6 @@ public template decodeJsonInternal(T, alias transform, Flag!"logErrors" logError
                     format!"Invalid JSON:%s expected object, but got %s"(
                         target ? (" " ~ target) : null, jsonStream.decodeJSONValue));
 
-                enum string[] aliasedMembers = [__traits(getAliasThis, T)];
                 enum isAliasedToThis(string constructorField) = aliasedMembers
                     .map!removeTrailingUnderline
                     .canFind(constructorField.removeTrailingUnderline)

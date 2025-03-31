@@ -738,6 +738,23 @@ unittest
     text.decode!Value.should.equal(Value(1, Inner(2, 0)));
 }
 
+@("immutable struct with alias this")
+unittest
+{
+    // given
+    immutable struct Struct
+    {
+        int value;
+
+        alias value this;
+
+        mixin(GenerateThis);
+    }
+
+    // when/then
+    "5".decode!Struct.should.equal(Struct(5));
+}
+
 @("type with invariant")
 unittest
 {
