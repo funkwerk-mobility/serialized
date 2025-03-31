@@ -745,6 +745,28 @@ template encodeTests(bool useEncodeJson)
 
             actual.should.equal(expected);
         }
+
+        @(prefix ~ "immutable struct with alias this")
+        unittest
+        {
+            // given
+            immutable struct Struct
+            {
+                int value;
+
+                alias value this;
+
+                mixin(GenerateThis);
+            }
+
+            // when
+            auto actual = testEncode(Struct(5));
+
+            // then
+            enum expected = `5`.parseJSON;
+
+            actual.should.equal(expected);
+        }
     }
 }
 

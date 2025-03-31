@@ -41,6 +41,8 @@ private void encodeJsonStream(T, alias transform, Range, attributes...)(ref Rang
     import boilerplate.util : udaIndex;
     import std.traits : isIterable, Unqual;
 
+    enum string[] aliasedMembers = [__traits(getAliasThis, T)];
+
     static if (__traits(compiles, transform(parameter)))
     {
         auto transformedValue = transform(parameter);
@@ -48,6 +50,13 @@ private void encodeJsonStream(T, alias transform, Range, attributes...)(ref Rang
             "transform must not return the same type as it takes!");
 
         encodeJsonStream!(typeof(transformedValue), transform, Range)(output, transformedValue);
+    }
+    else static if (aliasedMembers.length == 1 && aliasedMembers == T.ConstructorInfo.fields)
+    {
+        // alias-this in a struct with one field - just encode that field.
+        auto nextValue = __traits(getMember, parameter, aliasedMembers[0]);
+
+        return encodeJsonStream!(typeof(nextValue), transform, Range)(output, nextValue);
     }
     else
     {
