@@ -586,6 +586,36 @@ unittest
     value.should.equal(expected);
 }
 
+@("xml namespace")
+unittest
+{
+    static struct Child
+    {
+        mixin(GenerateThis);
+    }
+
+    @(Xml.Element)
+    static struct Parent
+    {
+        @(Xml.Attribute("xml:xmlns"))
+        string xmlns;
+
+        // TODO it should pick this up on the Child
+        @(Xml.Element("xml:child"))
+        Child child;
+
+        mixin(GenerateThis);
+    }
+
+    // when
+    auto value = decode!Parent(`<Parent xml:xmlns="http://example.com/xmlns"><xml:child/></Parent>`);
+
+    // then
+    auto expected = Parent("http://example.com/xmlns", Child());
+
+    value.should.equal(expected);
+}
+
 @(Xml.Element("root"))
 private struct Value
 {

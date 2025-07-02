@@ -424,6 +424,35 @@ template encodeTests(bool streamEncode)
         // then
         text.should.equal(`<!--foo--><Value/>`);
     }
+
+    @(prefix ~ ": xml namespace")
+    unittest
+    {
+        static struct Child
+        {
+            mixin(GenerateThis);
+        }
+
+        @(Xml.Element)
+        static struct Parent
+        {
+            @(Xml.Attribute("xml:xmlns"))
+            @(This.Init!"http://example.com/xmlns")
+            string xmlns;
+
+            // TODO it should pick this up on the Child
+            @(Xml.Element("xml:child"))
+            Child child;
+
+            mixin(GenerateThis);
+        }
+
+        // when
+        const text = Parent(Child()).testEncode;
+
+        // then
+        text.should.equal(`<Parent xml:xmlns="http://example.com/xmlns"><xml:child/></Parent>`);
+    }
 }
 
 @(Xml.Element("root"))
