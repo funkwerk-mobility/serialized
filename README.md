@@ -42,8 +42,6 @@ assert(value == Element("Hello World"));
 # Basic usage: JSON
 
 ```
-import text.xml.Xml;
-
 struct Element
 {
   string attribute;
