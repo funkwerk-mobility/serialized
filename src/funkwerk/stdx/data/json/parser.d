@@ -14,6 +14,8 @@
  */
 module funkwerk.stdx.data.json.parser;
 
+import std.json;
+
 ///
 unittest
 {
@@ -41,7 +43,6 @@ import std.range : ElementType, isInputRange;
 import std.traits : isIntegral, isSomeChar;
 
 import funkwerk.stdx.data.json.lexer;
-import funkwerk.stdx.data.json.value;
 
 /// The default amount of nesting in the input allowed by `toJSONValue` and `parseJSONValue`.
 enum defaultMaxDepth = 512;
@@ -77,32 +78,30 @@ JSONValue toJSONValue(Input)(Input tokens, int maxDepth = defaultMaxDepth)
 {
     // parse a simple number
     JSONValue a = toJSONValue(`1.0`);
-    assert(a == 1.0);
+    assert(a == JSONValue(1.0));
 
     // parse an object
     JSONValue b = toJSONValue(`{"a": true, "b": "test"}`);
     auto bdoc = b.get!(JSONValue[string]);
     assert(bdoc.length == 2);
-    assert(bdoc["a"] == true);
-    assert(bdoc["b"] == "test");
+    assert(bdoc["a"] == JSONValue(true));
+    assert(bdoc["b"] == JSONValue("test"));
 
     // parse an array
     JSONValue c = toJSONValue(`[1, 2, null]`);
     auto cdoc = c.get!(JSONValue[]);
     assert(cdoc.length == 3);
-    assert(cdoc[0] == 1.0);
-    assert(cdoc[1] == 2.0);
-    assert(cdoc[2] == null);
+    assert(cdoc[0] == JSONValue(1.0));
+    assert(cdoc[1] == JSONValue(2.0));
+    assert(cdoc[2] == JSONValue(null));
 
-    import std.conv;
     JSONValue jv = toJSONValue(`{ "a": 1234 }`);
-    assert(jv["a"].to!int == 1234);
+    assert(jv["a"] == JSONValue(1234));
 }
 
 unittest { // issue #22
-    import std.conv;
     JSONValue jv = toJSONValue(`{ "a": 1234 }`);
-    assert(jv["a"].to!int == 1234);
+    assert(jv["a"] == JSONValue(1234));
 }
 
 @safe unittest
@@ -145,8 +144,8 @@ JSONValue parseJSONValue(LexOptions options = LexOptions.init, Input)(ref Input 
 
     auto obj = v.get!(JSONValue[string]);
     assert(obj.length == 2);
-    assert(obj["a"] == true);
-    assert(obj["b"] == "test");
+    assert(obj["a"] == JSONValue(true));
+    assert(obj["b"] == JSONValue("test"));
 }
 
 /// Parse multiple consecutive values
@@ -154,10 +153,10 @@ JSONValue parseJSONValue(LexOptions options = LexOptions.init, Input)(ref Input 
 {
     string str = `1.0 2.0`;
     JSONValue v1 = parseJSONValue(str);
-    assert(v1 == 1.0);
+    assert(v1 == JSONValue(1.0));
     assert(str == `2.0`);
     JSONValue v2 = parseJSONValue(str);
-    assert(v2 == 2.0);
+    assert(v2 == JSONValue(2.0));
     assert(str == ``);
 }
 
@@ -221,7 +220,7 @@ JSONValue parseJSONValue(LexOptions options = LexOptions.init, Input)(ref Input 
                 tokens.popFront();
                 obj[key] = parseJSONValue(tokens, maxDepth - 1);
             }
-            ret = JSONValue(obj, loc);
+            ret = JSONValue(obj);
             break;
         case arrayStart:
             auto loc = tokens.front.location;
@@ -242,7 +241,7 @@ JSONValue parseJSONValue(LexOptions options = LexOptions.init, Input)(ref Input 
 
                 () @trusted { array ~= parseJSONValue(tokens, maxDepth - 1); }();
             }
-            ret = JSONValue(array.data, loc);
+            ret = JSONValue(array.data);
             break;
         case objectEnd, arrayEnd, colon, comma:
             enforceJson(false, "Expected JSON value", tokens.front.location);
@@ -264,9 +263,9 @@ JSONValue parseJSONValue(LexOptions options = LexOptions.init, Input)(ref Input 
 
     auto arr = doc.get!(JSONValue[]);
     assert(arr.length == 3);
-    assert(arr[0] == 1.0);
-    assert(arr[1] == 2.0);
-    assert(arr[2] == 3.0);
+    assert(arr[0] == JSONValue(1.0));
+    assert(arr[1] == JSONValue(2.0));
+    assert(arr[2] == JSONValue(3.0));
 }
 
 @safe unittest

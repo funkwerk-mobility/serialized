@@ -15,7 +15,7 @@ module funkwerk.stdx.data.json.generator;
 
 import funkwerk.stdx.data.json.lexer;
 import funkwerk.stdx.data.json.parser;
-import funkwerk.stdx.data.json.value;
+import std.json;
 import std.range;
 
 
@@ -374,8 +374,6 @@ enum GeneratorOptions {
 @safe private void writeAsStringImpl(GeneratorOptions options, Output)(JSONValue value, ref Output output, size_t nesting_level = 0)
     if (isOutputRange!(Output, char))
 {
-    import funkwerk.stdx.data.json.taggedalgebraic : get;
-
     enum pretty_print = (options & GeneratorOptions.compact) == 0;
 
     void indent(size_t depth)
@@ -384,16 +382,18 @@ enum GeneratorOptions {
         foreach (tab; 0 .. depth) output.put('\t');
     }
 
-    final switch (value.kind) {
-        case JSONValue.Kind.null_: output.put("null"); break;
-        case JSONValue.Kind.boolean: output.put(value == true ? "true" : "false"); break;
-        case JSONValue.Kind.double_: output.writeNumber!options(cast(double)value); break;
-        case JSONValue.Kind.integer: output.writeNumber(cast(long)value); break;
-        case JSONValue.Kind.string: output.put('"'); output.escapeString!(options & GeneratorOptions.escapeUnicode)(get!string(value)); output.put('"'); break;
-        case JSONValue.Kind.object:
+    final switch (value.type) {
+        case JSONType.null_: output.put("null"); break;
+        case JSONType.true_: output.put("true"); break;
+        case JSONType.false_: output.put("false"); break;
+        case JSONType.float_: output.writeNumber!options(value.floating); break;
+        case JSONType.integer: output.writeNumber(value.integer); break;
+        case JSONType.uinteger: output.writeNumber(value.uinteger); break;
+        case JSONType.string: output.put('"'); output.escapeString!(options & GeneratorOptions.escapeUnicode)(value.get!string); output.put('"'); break;
+        case JSONType.object:
             output.put('{');
             bool first = true;
-            foreach (string k, ref e; get!(JSONValue[string])(value))
+            foreach (string k, e; value.objectNoRef)
             {
                 if (!first) output.put(',');
                 else first = false;
@@ -409,9 +409,9 @@ enum GeneratorOptions {
             }
             output.put('}');
             break;
-        case JSONValue.Kind.array:
+        case JSONType.array:
             output.put('[');
-            foreach (i, ref e; get!(JSONValue[])(value))
+            foreach (i, e; value.arrayNoRef)
             {
                 if (i > 0) output.put(',');
                 static if (pretty_print) indent(nesting_level+1);
@@ -419,7 +419,7 @@ enum GeneratorOptions {
             }
             static if (pretty_print)
             {
-                if (get!(JSONValue[])(value).length > 0) indent(nesting_level);
+                if (value.arrayNoRef.length > 0) indent(nesting_level);
             }
             output.put(']');
             break;
