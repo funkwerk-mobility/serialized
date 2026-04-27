@@ -58,12 +58,14 @@ public T decodeXml(T)(XmlNode node)
 public auto decodeUnchecked(T, attributes...)(XmlNode node)
 {
     import boilerplate.util : formatNamed, optionallyRemoveTrailingUnderline, udaIndex;
+    import core.exception: AssertError;
     import std.algorithm : map;
     import std.meta : AliasSeq, anySatisfy, ApplyLeft;
     import std.range : array, ElementType;
     import std.string : empty, strip;
     import std.traits : fullyQualifiedName, isIterable, Unqual;
     import std.typecons : Nullable, Tuple;
+    import text.xml.XmlException : XmlException;
 
     static if (isNodeLeafType!(T, attributes))
     {
@@ -237,7 +239,16 @@ public auto decodeUnchecked(T, attributes...)(XmlNode node)
             }
         }}
 
-        return builder.builderValue();
+        // catch invariant violations
+        try
+        {
+            return builder.builderValue;
+        }
+        catch (AssertError error)
+        {
+            throw new XmlException(format!`%s:%s - while decoding <%s>: %s`(
+                error.file, error.line, node.tag, error.msg));
+        }
     }
 }
 
