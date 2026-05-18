@@ -476,6 +476,42 @@ unittest
     }
 }
 
+@("regression test: SumType of two immutable structs")
+unittest
+{
+    @(Xml.Element("Foo"))
+    static immutable struct Foo
+    {
+        @(Xml.Text)
+        string text;
+
+        mixin(GenerateAll);
+    }
+
+    @(Xml.Element("Bar"))
+    static immutable struct Bar
+    {
+        @(Xml.Text)
+        string text;
+
+        mixin(GenerateAll);
+    }
+
+    alias Either = SumType!(Foo, Bar);
+
+    @(Xml.Element("Value"))
+    struct Value
+    {
+        Either entry;
+
+        mixin(GenerateThis);
+    }
+
+    // given/when/then
+    decode!Value(`<Value><Foo>foo</Foo></Value>`).should.equal(Value(Either(Foo("foo"))));
+    decode!Value(`<Value><Bar>bar</Bar></Value>`).should.equal(Value(Either(Bar("bar"))));
+}
+
 @("comment element")
 unittest
 {

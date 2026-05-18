@@ -5,6 +5,7 @@
 		"dshould": "1.7.1",
 		"dxml": "0.4.3",
 		"prettyprint": "1.0.9",
+		"rebindable": "1.0.1",
 		"unit-threaded": "2.1.6"
 	}
 }

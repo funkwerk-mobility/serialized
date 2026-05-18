@@ -12,7 +12,8 @@
 		"boilerplate": ">=1.8.3",
 		"dshould": ">=1.2.1",
 		"dxml": ">=0.4.1",
-		"prettyprint": ">=1.0.5"
+		"prettyprint": ">=1.0.5",
+		"rebindable": ">=1.0.1"
 	},
 
 	"configurations": [

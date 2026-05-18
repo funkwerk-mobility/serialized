@@ -258,15 +258,15 @@ public auto decodeUnchecked(T, attributes...)(XmlNode node)
  */
 private SumType!Types decodeSumType(Types...)(XmlNode node)
 {
+    import rebindable.Nullable : RebindableNullable = Nullable;
     import std.algorithm : find, map, moveEmplace, sum;
     import std.array : array, front;
     import std.exception : enforce;
     import std.meta : AliasSeq, staticMap;
     import std.traits : fullyQualifiedName;
-    import std.typecons : apply, Nullable, nullable;
     import text.xml.XmlException : XmlException;
 
-    Nullable!(SumType!Types)[Types.length] decodedValues;
+    RebindableNullable!(SumType!Types)[Types.length] decodedValues;
 
     static foreach (i, Type; Types)
     {{
@@ -303,7 +303,10 @@ private SumType!Types decodeSumType(Types...)(XmlNode node)
         {
             auto child = node.findChild(name);
 
-            decodedValues[i] = child.apply!(a => SumType!Types(a.decodeUnchecked!Type));
+            if (!child.isNull)
+            {
+                decodedValues[i] = SumType!Types(child.get.decodeUnchecked!Type);
+            }
         }
     }}
 
