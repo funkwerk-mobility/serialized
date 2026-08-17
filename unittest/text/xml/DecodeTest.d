@@ -476,6 +476,26 @@ unittest
     }
 }
 
+@("non-string text field")
+unittest
+{
+    import text.xml.XmlException : XmlException;
+
+    @(Xml.Element("Foo"))
+    static immutable struct Foo
+    {
+        @(Xml.Text)
+        int text;
+
+        mixin(GenerateAll);
+    }
+
+    // given/when/then
+    decode!Foo(`<Foo>5</Foo>`).should.be(Foo(5));
+    decode!Foo(`<Foo> 5 </Foo>`).should.be(Foo(5));
+    decode!Foo(`<Foo>bla</Foo>`).should.throwAn!XmlException(`Foo.text: "bla" is not a valid value of type int`);
+}
+
 @("regression test: SumType of two immutable structs")
 unittest
 {

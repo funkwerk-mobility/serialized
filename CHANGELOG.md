@@ -4,6 +4,116 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.20.0] - 2026-08-17
+### Added
+- Allow `@(Xml.Text)` fields to be non-string; decode just like attributes.
+
+## [1.19.1] - 2026-07-18
+### Fixed
+- Update dub.selections.json so that DMD buildkite passes with 2.112.
+
+## [1.19.0] - 2026-05-18
+### Added
+- Handle sumtype of immutable structs when decoding XML. Adds a dependency on rebindable.
+
+## [1.18.1] - 2026-04-27
+### Fixed
+- Convert AssertError to XmlError, like in text.json.Decode.
+
+## [1.18.0] - 2026-02-04
+### Added
+- XML "namespaces" are supported by just defining the attribute/element with a prefix.
+
+### Removed
+- Remove TaggedAlgebraic, switch to phobos std.json.
+
+## [1.17.2] - 2025-03-31
+### Added
+- JSON: Support immutable struct with single value aliased to this on the decode side.
+
+## [1.17.1] - 2025-03-31
+### Added
+- JSON: Support immutable structs with one value type aliased to this.
+
+## [1.17.0] - 2025-03-31
+### Added
+- Add `@(Xml.Comment)` elements - for encoding only!!!
+
+## [1.16.1] - 2024-08-12
+### Changed
+- Speed up `Convert.toString(SysTime)` by reimplementing `toISOExtString` manually.
+
+## [1.16.0] - 2024-08-09
+### Changed
+- Vendor dxml.writer, dxml.internal for performance optimizations.
+- Remove tag stack. Move name checking to compiletime.
+- Remove duplicate-attribute check.
+
+## [1.15.2] - 2024-08-09
+### Fixed
+- Avoid evaluating member value if we're not sure we're including it. Those can be functions or literals!
+
+## [1.15.1] - 2024-08-09
+### Fixed
+- XML: When stream encoding, pass writer as pointer. Avoids corruption issues when writer has value semantics.
+
+## [1.15.0] - 2024-08-08
+### Added
+- XML: Add `void encode(value, sink);` to encode to an output stream.
+
+## [1.14.1] - 2024-07-26
+### Added
+- Support `SysTime` as an element's text value.
+
+## [1.14.0] - 2024-07-26
+### Added
+- XML: Allow decoding a document where the top element can be one of n different types, identified by tag name.
+
+## [1.13.7] - 2024-05-21
+### Added
+- Allow `decode` helper to take std.data.json JSON stream. This allows implementation of high-performance custom decoders.
+
+## [1.13.6] - 2023-11-09
+### Fixed
+- Restore non-nullable default field behavior.
+
+## [1.13.5] - 2023-10-23
+### Fixed
+- Fix build on DMD 2.097.
+
+## [1.13.4] - 2023-10-20
+### Fixed
+- Fix variable declaration collision when decoding enum with more than one member.
+
+## [1.13.3] - 2023-10-20
+### Fixed
+- Support keywords in JSON-style enums as well.
+
+## [1.13.2] - 2023-10-20
+### Fixed
+- Fix encoding/decoding of reserved-keyword enum members.
+
+## [1.13.1] - 2023-06-30
+### Fixed
+- Dup string literals on decoding to ensure that references to the input stream are broken.
+
+## [1.13.0] - 2023-06-13
+### Changed
+- When encoding a type with alias-this, fields in the child that were already present in the parent are not encoded.
+- When decoding with alias-this, fields that were already decoded directly in the parent are not decoded a second time in the aliased field's recursive decode.
+
+## [1.12.0] - 2023-06-12
+### Removed
+- Remove deprecated text.xml.tree file.
+
+## [1.11.0] - 2023-04-18
+### Added
+- Json.Encode: Custom encoders can chain.
+
+## [1.10.0] - 2023-04-18
+### Changed
+- Move package `meta` to `serialized.meta`. This avoids a name collision with an internal package that also uses `meta`.
+
 ## [1.9.0] - 2023-01-11
 ### Added
 - Interpret boilerplate's `@AliasThis` equivalent to `alias this` in JSON encoding/decoding.

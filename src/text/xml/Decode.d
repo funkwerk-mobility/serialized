@@ -210,7 +210,16 @@ public auto decodeUnchecked(T, attributes...)(XmlNode node)
             }
             else static if (udaIndex!(Xml.Text, attributes) != -1)
             {
-                __traits(getMember, builder, builderField) = dxml.util.decodeXML(node.text);
+                import text.xml.Convert : Convert;
+
+                try
+                {
+                    __traits(getMember, builder, builderField) = Convert.to!DecodeType(dxml.util.decodeXML(node.text));
+                }
+                catch (XmlException exception)
+                {
+                    throw new XmlException(format!"%s.%s: %s"(Unqual!T.stringof, constructorField, exception.msg));
+                }
             }
             else static if (udaIndex!(Xml.Comment, attributes) != -1)
             {
